@@ -1,0 +1,18 @@
+# 日志文件（可能包含敏感信息）
+logs/
+*.log
+
+# PID 文件
+*.pid
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
