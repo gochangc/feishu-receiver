@@ -12,7 +12,7 @@ LIB_DIR="$BASE_DIR/lib"
 LOGS_DIR="$BASE_DIR/logs"
 PID_FILE="$BASE_DIR/feishu-receiver.pid"
 
-WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/gcc/workspace}"
+WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/user/workspace}"
 
 cmd_help() {
     cat <<EOF
@@ -29,8 +29,8 @@ cmd_help() {
   help        显示此帮助信息
 
 环境变量:
-  FEISHU_RECEIVER_WORKDIR        - Claude Code 工作目录 (默认: /home/gcc/workspace)
-  FEISHU_RECEIVER_BOT_NAME       - 机器人名称 (默认: 郭昌承的飞书 CLI)
+  FEISHU_RECEIVER_WORKDIR        - Claude Code 工作目录 (默认: /home/user/workspace)
+  FEISHU_RECEIVER_BOT_NAME       - 机器人名称 (默认: 我的飞书机器人)
   FEISHU_RECEIVER_CLAUDE_TIMEOUT - Claude Code 超时时间 (默认: 300秒)
 
 日志目录: $LOGS_DIR

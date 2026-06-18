@@ -19,7 +19,8 @@ feishu-receiver/
 ├── lib/
 │   └── feishu-receiver.py     # 核心服务脚本
 ├── logs/                      # 日志目录（运行时生成，已 gitignore）
-├── install.sh                 # 安装脚本
+├── install.sh                 # 安装脚本（Linux/macOS）
+├── install.ps1                # 安装脚本（Windows PowerShell）
 ├── uninstall.sh               # 卸载脚本
 └── README.md                  # 本文件
 ```
@@ -50,24 +51,42 @@ feishu-receiver/
 
 ## 安装
 
-### 用户级安装（推荐，无需 sudo）
+### 一行命令安装
+
+**Linux / macOS / Git Bash：**
 
 ```bash
-cd feishu-receiver
-./install.sh --user
+curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | bash -s -- --user
 ```
 
-### 系统级安装
+系统级安装（需要 sudo）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | sudo bash -s -- --user
+```
+
+**Windows PowerShell：**
+
+```powershell
+irm https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.ps1 | iex
+```
+
+> Windows 需要安装 Git Bash 或 WSL 来运行服务控制脚本。
+
+### 本地安装
+
+克隆仓库后本地运行安装脚本：
 
 ```bash
 cd feishu-receiver
-sudo ./install.sh
+./install.sh --user    # 用户级安装（推荐，无需 sudo）
+sudo ./install.sh      # 系统级安装
 ```
 
 ### 自定义工作目录
 
 ```bash
-./install.sh --user --workdir /path/to/workspace
+curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | bash -s -- --user --workdir /path/to/workspace
 ```
 
 ## 使用
@@ -115,8 +134,8 @@ sudo journalctl -u feishu-receiver -f        # 系统级
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `FEISHU_RECEIVER_WORKDIR` | Claude Code 工作目录 | `/home/gcc/workspace` |
-| `FEISHU_RECEIVER_BOT_NAME` | 机器人名称（用于过滤 @提及） | `郭昌承的飞书 CLI` |
+| `FEISHU_RECEIVER_WORKDIR` | Claude Code 工作目录 | `/home/user/workspace` |
+| `FEISHU_RECEIVER_BOT_NAME` | 机器人名称（用于过滤 @提及） | `我的飞书机器人` |
 | `FEISHU_RECEIVER_CLAUDE_TIMEOUT` | Claude Code 调用超时（秒） | `300` |
 
 示例：
@@ -138,10 +157,16 @@ tail -f ~/.local/share/feishu-receiver/logs/feishu-receiver.log
 
 ## 卸载
 
+**Linux / macOS：**
+
 ```bash
 ./uninstall.sh --user    # 用户级
 sudo ./uninstall.sh      # 系统级
 ```
+
+**Windows：**
+
+删除安装目录 `%LOCALAPPDATA%\feishu-receiver` 并从系统 PATH 中移除即可。
 
 ## 常见问题
 

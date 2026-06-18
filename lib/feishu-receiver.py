@@ -13,8 +13,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent.parent
 LOGS_DIR = SCRIPT_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOGS_DIR / "feishu-receiver.log"
-WORK_DIR = Path(os.environ.get("FEISHU_RECEIVER_WORKDIR", "/home/gcc/workspace"))
-BOT_NAME = os.environ.get("FEISHU_RECEIVER_BOT_NAME", "郭昌承的飞书 CLI")
+WORK_DIR = Path(os.environ.get("FEISHU_RECEIVER_WORKDIR", "/home/user/workspace"))
+BOT_NAME = os.environ.get("FEISHU_RECEIVER_BOT_NAME", "我的飞书机器人")
 CLAUDE_TIMEOUT_SECONDS = int(os.environ.get("FEISHU_RECEIVER_CLAUDE_TIMEOUT", "300"))
 
 

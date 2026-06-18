@@ -6,7 +6,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_MODE="system"
-WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/gcc/workspace}"
+WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/user/workspace}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "用法: $0 [--user] [--workdir /path/to/workspace]"
             echo "  --user     安装到用户目录 (~/.local)，无需 sudo"
-            echo "  --workdir  设置 Claude Code 的工作目录 (默认: /home/gcc/workspace)"
+            echo "  --workdir  设置 Claude Code 的工作目录 (默认: /home/user/workspace)"
             exit 0
             ;;
         *)
@@ -66,10 +66,15 @@ if echo "$LARK_AUTH_STATUS" | grep -q "not configured"; then
     echo ""
     echo "配置说明见下文【前置配置】部分。"
     echo ""
-    read -rp "是否继续安装? (y/N) " confirm
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-        echo "安装已取消。"
-        exit 1
+    if [[ -t 0 ]]; then
+        read -rp "是否继续安装? (y/N) " confirm
+        if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+            echo "安装已取消。"
+            exit 1
+        fi
+    else
+        echo "检测到管道模式，跳过交互确认，继续安装。"
+        echo "请记得安装后完成 lark-cli 配置。"
     fi
 else
     echo "    lark-cli 已配置"
@@ -211,7 +216,7 @@ echo "  前台运行: feishu-receiver foreground"
 echo ""
 echo "【环境变量 (可选)】"
 echo "  FEISHU_RECEIVER_WORKDIR        - Claude Code 工作目录 (默认: $WORK_DIR)"
-echo "  FEISHU_RECEIVER_BOT_NAME       - 机器人名称 (默认: 郭昌承的飞书 CLI)"
+echo "  FEISHU_RECEIVER_BOT_NAME       - 机器人名称 (默认: 我的飞书机器人)"
 echo "  FEISHU_RECEIVER_CLAUDE_TIMEOUT - Claude Code 超时时间 (默认: 300秒)"
 echo ""
 echo "【查看服务日志】"
