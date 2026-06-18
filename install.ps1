@@ -38,7 +38,7 @@ Write-Host '==> 下载项目文件...'
 if (Test-Path $InstallDir) {
     Remove-Item -Recurse -Force $InstallDir
 }
-git clone --depth 1 $RepoUrl $InstallDir 2>$null
+cmd /c "git clone --depth 1 $RepoUrl $InstallDir 2>nul"
 if ($LASTEXITCODE -ne 0) {
     Write-Host '  克隆失败，请检查网络' -ForegroundColor Red
     exit 1
@@ -57,7 +57,7 @@ if ($userPath -notlike "*$InstallDir*") {
     } else {
         $newPath = $InstallDir
     }
-    setx PATH $newPath 2>$null
+    cmd /c "setx PATH `"$newPath`" 2>nul"
     Write-Host '  已添加到用户 PATH'
 } else {
     Write-Host '  已在 PATH 中'
