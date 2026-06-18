@@ -122,13 +122,11 @@ ls ~/.feishu-receiver/logs/claude-debug-*.log                # Claude 调试日�
 
 ## 卸载
 
-**Linux / macOS / Git Bash：**
-
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/uninstall.sh | bash
+feishu-receiver uninstall
 ```
 
-**Windows PowerShell：**
+Windows 上也可直接删除目录：
 
 ```powershell
 rm -r $env:USERPROFILE\.feishu-receiver

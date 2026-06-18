@@ -45,6 +45,7 @@ cmd_help() {
   restart     重启服务
   foreground  前台运行（Ctrl+C 停止）
   setup       交互式配置向导
+  uninstall   卸载服务
   help        显示此帮助信息
 
 配置: $CONFIG_FILE
@@ -243,6 +244,42 @@ cmd_foreground() {
     exec python3 "$LIB_DIR/feishu-receiver.py"
 }
 
+cmd_uninstall() {
+    echo "==> 卸载飞书消息接收服务..."
+
+    # 停止服务
+    if [[ -f "$PID_FILE" ]]; then
+        local pid
+        pid=$(cat "$PID_FILE" 2>/dev/null || true)
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            echo "==> 停止运行中的服务..."
+            kill "$pid" 2>/dev/null || true
+            sleep 1
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+        rm -f "$PID_FILE"
+    fi
+
+    # 停止 systemd 服务
+    if [[ -d "${HOME}/.config/systemd/user" ]]; then
+        systemctl --user stop feishu-receiver.service 2>/dev/null || true
+        systemctl --user disable feishu-receiver.service 2>/dev/null || true
+        rm -f "${HOME}/.config/systemd/user/feishu-receiver.service"
+        systemctl --user daemon-reload 2>/dev/null || true
+    fi
+
+    # 删除命令快捷方式
+    echo "==> 删除命令快捷方式..."
+    rm -f "${HOME}/.local/bin/feishu-receiver"
+
+    # 删除安装目录
+    echo "==> 删除安装目录..."
+    rm -rf "$BASE_DIR"
+
+    echo ""
+    echo "卸载完成！"
+}
+
 main() {
     if [[ $# -eq 0 ]]; then
         cmd_help
@@ -256,6 +293,7 @@ main() {
         restart)    cmd_restart ;;
         foreground) cmd_foreground ;;
         setup)      cmd_setup ;;
+        uninstall)  cmd_uninstall ;;
         help|-h|--help) cmd_help ;;
         *)
             echo "未知命令: $1"
