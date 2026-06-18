@@ -59,8 +59,6 @@ feishu-receiver/
 curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | bash
 ```
 
-> 加 `sudo` 可安装到 `/opt/feishu-receiver`（系统级）。
-
 **Windows PowerShell：**
 
 ```powershell
