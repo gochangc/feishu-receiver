@@ -53,18 +53,10 @@ feishu-receiver/
 
 ## 安装
 
-### 一行命令安装
-
 **Linux / macOS / Git Bash：**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | bash -s -- --user
-```
-
-系统级安装（需要 sudo）：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | sudo bash -s -- --user
 ```
 
 **Windows PowerShell：**
@@ -73,23 +65,7 @@ curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/insta
 irm https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.ps1 | iex
 ```
 
-> Windows 需要安装 Git Bash 或 WSL 来运行服务控制脚本。
-
-### 本地安装
-
-克隆仓库后本地运行安装脚本：
-
-```bash
-cd feishu-receiver
-./install.sh --user    # 用户级安装（推荐，无需 sudo）
-sudo ./install.sh      # 系统级安装
-```
-
-### 自定义工作目录
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | bash -s -- --user --workdir /path/to/workspace
-```
+> 系统级安装加 `sudo`。Windows 需要 Git Bash 或 WSL。
 
 ## 使用
 
