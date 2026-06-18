@@ -14,7 +14,7 @@ if ($env:FEISHU_RECEIVER_WORKDIR) {
 }
 
 Write-Host '==> 检查依赖...' -ForegroundColor Cyan
-foreach ($cmd in @('python3', 'lark-cli', 'claude')) {
+foreach ($cmd in @('python3', 'lark-cli', 'claude', 'git')) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
         Write-Host "  错误: $cmd 未找到" -ForegroundColor Red
         exit 1
@@ -71,7 +71,10 @@ Write-Host "安装目录: $InstallDir"
 Write-Host "日志目录: $LogDir"
 Write-Host "工作目录: $WorkDir"
 Write-Host ''
-Write-Host '启动: feishu-receiver <start|stop|status|restart|foreground>'
-Write-Host "日志: Get-Content $LogDir\feishu-receiver.log -Wait"
-Write-Host "卸载: 删除 $InstallDir 即可"
+Write-Host '接下来请运行配置向导 (新终端窗口):'
+Write-Host ''
+Write-Host '  feishu-receiver setup'
+Write-Host ''
+Write-Host '其他命令: feishu-receiver <start|stop|status|restart|foreground>'
+Write-Host "卸载: 删除 $InstallDir 并从 PATH 移除即可"
 Write-Host '========================================' -ForegroundColor Green
