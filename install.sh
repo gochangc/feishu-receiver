@@ -4,7 +4,7 @@ set -euo pipefail
 # 飞书消息接收服务安装脚本
 # 用法: curl -fsSL <raw-url> | bash -s -- [--user] [--workdir /path/to/workspace]
 
-INSTALL_MODE="system"
+INSTALL_MODE="user"
 WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/user/workspace}"
 while [[ $# -gt 0 ]]; do
     case "$1" in

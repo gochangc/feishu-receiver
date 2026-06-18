@@ -4,7 +4,7 @@ set -euo pipefail
 # 飞书消息接收服务卸载脚本
 # 用法: ./uninstall.sh [--user]
 
-INSTALL_MODE="system"
+INSTALL_MODE="user"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in

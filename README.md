@@ -56,7 +56,7 @@ feishu-receiver/
 **Linux / macOS / Git Bash：**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | bash -s -- --user
+curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | bash
 ```
 
 **Windows PowerShell：**
@@ -64,8 +64,6 @@ curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/insta
 ```powershell
 irm https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.ps1 | iex
 ```
-
-> 系统级安装加 `sudo`。Windows 需要 Git Bash 或 WSL。
 
 ## 使用
 
@@ -96,31 +94,12 @@ feishu-receiver foreground   # 前台运行（Ctrl+C 停止）
 feishu-receiver setup        # 重新配置
 ```
 
-### systemd 模式
-
-用户级安装：
+安装脚本会自动创建 systemd 服务（Linux），也可用 systemctl 管理：
 
 ```bash
 systemctl --user start feishu-receiver
 systemctl --user stop feishu-receiver
-systemctl --user status feishu-receiver
-systemctl --user restart feishu-receiver
-```
-
-系统级安装：
-
-```bash
-sudo systemctl start feishu-receiver
-sudo systemctl stop feishu-receiver
-sudo systemctl status feishu-receiver
-sudo systemctl restart feishu-receiver
-```
-
-查看 systemd 日志：
-
-```bash
-journalctl --user -u feishu-receiver -f      # 用户级
-sudo journalctl -u feishu-receiver -f        # 系统级
+journalctl --user -u feishu-receiver -f
 ```
 
 ## 配置
@@ -164,16 +143,17 @@ tail -f ~/.feishu-receiver/logs/feishu-receiver.log
 
 ## 卸载
 
-**Linux / macOS：**
+**Linux / macOS / Git Bash：**
 
 ```bash
-./uninstall.sh --user    # 用户级
-sudo ./uninstall.sh      # 系统级
+curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/uninstall.sh | bash
 ```
 
-**Windows：**
+**Windows PowerShell：**
 
-删除安装目录 `%USERPROFILE%\.feishu-receiver` 并从系统 PATH 中移除即可。
+```powershell
+rm -r $env:USERPROFILE\.feishu-receiver
+```
 
 ## 常见问题
 
