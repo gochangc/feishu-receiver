@@ -6,8 +6,6 @@ set -euo pipefail
 
 INSTALL_MODE="system"
 WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/user/workspace}"
-REPO_URL="https://github.com/gochangc/feishu-receiver.git"
-
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --user)
@@ -47,7 +45,7 @@ else
 fi
 
 echo "==> 检查依赖..."
-for cmd in python3 lark-cli claude git; do
+for cmd in python3 lark-cli claude curl; do
     if ! command -v "$cmd" &>/dev/null; then
         echo "  错误: $cmd 未找到，请先安装。" >&2
         exit 1
@@ -55,13 +53,15 @@ for cmd in python3 lark-cli claude git; do
 done
 echo "  依赖检查通过"
 
-echo "==> 下载项目文件到 $INSTALL_DIR ..."
+RAW_BASE="https://raw.githubusercontent.com/gochangc/feishu-receiver/main"
+
+echo "==> 下载文件到 $INSTALL_DIR ..."
 if [[ -d "$INSTALL_DIR" ]]; then
     rm -rf "$INSTALL_DIR"
 fi
-git clone --depth 1 "$REPO_URL" "$INSTALL_DIR" 2>/dev/null
-rm -rf "$INSTALL_DIR/.git"
-mkdir -p "$INSTALL_DIR/logs"
+mkdir -p "$INSTALL_DIR"/{bin,lib,logs}
+curl -fsSL "$RAW_BASE/bin/feishu-receiver" -o "$INSTALL_DIR/bin/feishu-receiver"
+curl -fsSL "$RAW_BASE/lib/feishu-receiver.py" -o "$INSTALL_DIR/lib/feishu-receiver.py"
 
 echo "==> 创建命令快捷方式..."
 chmod +x "$INSTALL_DIR/lib/feishu-receiver.py" "$INSTALL_DIR/bin/feishu-receiver"

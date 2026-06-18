@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 
 $InstallDir = "$env:USERPROFILE\.feishu-receiver"
 $LogDir = "$InstallDir\logs"
-$RepoUrl = 'https://github.com/gochangc/feishu-receiver.git'
+$RawBase = 'https://raw.githubusercontent.com/gochangc/feishu-receiver/main'
 
 if ($env:FEISHU_RECEIVER_WORKDIR) {
     $WorkDir = $env:FEISHU_RECEIVER_WORKDIR
@@ -14,7 +14,7 @@ if ($env:FEISHU_RECEIVER_WORKDIR) {
 }
 
 Write-Host '==> 检查依赖...' -ForegroundColor Cyan
-foreach ($cmd in @('python3', 'lark-cli', 'claude', 'git')) {
+foreach ($cmd in @('python3', 'lark-cli', 'claude')) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
         Write-Host "  错误: $cmd 未找到" -ForegroundColor Red
         exit 1
@@ -34,17 +34,14 @@ if ($larkStatus -match 'not configured') {
     Write-Host '  lark-cli 已配置'
 }
 
-Write-Host '==> 下载项目文件...'
+Write-Host '==> 下载文件...'
 if (Test-Path $InstallDir) {
     Remove-Item -Recurse -Force $InstallDir
 }
-cmd /c "git clone --depth 1 $RepoUrl $InstallDir 2>nul"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host '  克隆失败，请检查网络' -ForegroundColor Red
-    exit 1
-}
-Remove-Item -Recurse -Force "$InstallDir\.git" -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force $LogDir 2>$null
+New-Item -ItemType Directory -Force $InstallDir\bin, $InstallDir\lib, $LogDir 2>$null | Out-Null
+Invoke-WebRequest -Uri "$RawBase/bin/feishu-receiver" -OutFile "$InstallDir\bin\feishu-receiver"
+Invoke-WebRequest -Uri "$RawBase/bin/feishu-receiver.bat" -OutFile "$InstallDir\bin\feishu-receiver.bat"
+Invoke-WebRequest -Uri "$RawBase/lib/feishu-receiver.py" -OutFile "$InstallDir\lib\feishu-receiver.py"
 
 Write-Host '==> 创建命令入口...'
 Copy-Item "$InstallDir\bin\feishu-receiver.bat" "$InstallDir\feishu-receiver.bat"
