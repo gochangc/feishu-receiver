@@ -38,13 +38,13 @@ Write-Host '==> 下载项目文件...'
 if (Test-Path $InstallDir) {
     Remove-Item -Recurse -Force $InstallDir
 }
-git clone --depth 1 $RepoUrl $InstallDir *>$null
+git clone --depth 1 $RepoUrl $InstallDir 2>$null
 if ($LASTEXITCODE -ne 0) {
     Write-Host '  克隆失败，请检查网络' -ForegroundColor Red
     exit 1
 }
 Remove-Item -Recurse -Force "$InstallDir\.git" -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force $LogDir *>$null
+New-Item -ItemType Directory -Force $LogDir 2>$null
 
 Write-Host '==> 创建命令入口...'
 Copy-Item "$InstallDir\bin\feishu-receiver.bat" "$InstallDir\feishu-receiver.bat"
@@ -57,7 +57,7 @@ if ($userPath -notlike "*$InstallDir*") {
     } else {
         $newPath = $InstallDir
     }
-    setx PATH $newPath *>$null
+    setx PATH $newPath 2>$null
     Write-Host '  已添加到用户 PATH'
 } else {
     Write-Host '  已在 PATH 中'
