@@ -2,33 +2,9 @@
 set -euo pipefail
 
 # 飞书消息接收服务卸载脚本
-# 用法: ./uninstall.sh [--user]
+# 用法: curl -fsSL <raw-url> | bash
 
-INSTALL_MODE="user"
-
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --user)
-            INSTALL_MODE="user"
-            shift
-            ;;
-        -h|--help)
-            echo "用法: $0 [--user]"
-            echo "  --user  卸载用户级安装"
-            exit 0
-            ;;
-        *)
-            echo "未知参数: $1" >&2
-            exit 1
-            ;;
-    esac
-done
-
-if [[ "$INSTALL_MODE" == "system" ]]; then
-    if [[ "$EUID" -ne 0 ]]; then
-        echo "系统级卸载需要 root 权限，请使用 sudo 运行，或添加 --user 进行用户级卸载。" >&2
-        exit 1
-    fi
+if [[ "$EUID" -eq 0 ]]; then
     INSTALL_DIR="/opt/feishu-receiver"
     BIN_DIR="/usr/local/bin"
     SYSTEMD_DIR="/etc/systemd/system"

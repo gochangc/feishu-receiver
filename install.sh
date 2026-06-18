@@ -4,36 +4,10 @@ set -euo pipefail
 # 飞书消息接收服务安装脚本
 # 用法: curl -fsSL <raw-url> | bash -s -- [--user] [--workdir /path/to/workspace]
 
-INSTALL_MODE="user"
 WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/user/workspace}"
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --user)
-            INSTALL_MODE="user"
-            shift
-            ;;
-        --workdir)
-            WORK_DIR="$2"
-            shift 2
-            ;;
-        -h|--help)
-            echo "用法: curl -fsSL <raw-url> | bash -s -- [--user] [--workdir /path/to/workspace]"
-            echo "  --user     安装到用户目录 (~/.feishu-receiver)"
-            echo "  --workdir  设置 Claude Code 的工作目录 (默认: /home/user/workspace)"
-            exit 0
-            ;;
-        *)
-            echo "未知参数: $1" >&2
-            exit 1
-            ;;
-    esac
-done
 
-if [[ "$INSTALL_MODE" == "system" ]]; then
-    if [[ "$EUID" -ne 0 ]]; then
-        echo "系统级安装需要 root 权限，请使用 sudo，或加 --user 进行用户级安装。" >&2
-        exit 1
-    fi
+# 根据是否 sudo 自动判断安装模式
+if [[ "$EUID" -eq 0 ]]; then
     INSTALL_DIR="/opt/feishu-receiver"
     BIN_DIR="/usr/local/bin"
     SYSTEMD_DIR="/etc/systemd/system"
@@ -43,6 +17,23 @@ else
     SYSTEMD_DIR="${HOME}/.config/systemd/user"
     mkdir -p "$BIN_DIR" "$SYSTEMD_DIR"
 fi
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --workdir)
+            WORK_DIR="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "用法: curl -fsSL <raw-url> | bash [--workdir /path/to/workspace]"
+            echo "  --workdir  设置 Claude Code 的工作目录 (默认: /home/user/workspace)"
+            exit 0
+            ;;
+        *)
+            echo "未知参数: $1" >&2
+            exit 1
+            ;;
+    esac
+done
 
 echo "==> 检查依赖..."
 for cmd in python3 lark-cli claude curl; do
@@ -68,7 +59,7 @@ chmod +x "$INSTALL_DIR/lib/feishu-receiver.py" "$INSTALL_DIR/bin/feishu-receiver
 ln -sf "$INSTALL_DIR/bin/feishu-receiver" "$BIN_DIR/feishu-receiver"
 
 echo "==> 创建 systemd 服务..."
-if [[ "$INSTALL_MODE" == "system" ]]; then
+if [[ "$EUID" -eq 0 ]]; then
     cat > "$SYSTEMD_DIR/feishu-receiver.service" <<SYSEOF
 [Unit]
 Description=Feishu Message Receiver for Claude Code
