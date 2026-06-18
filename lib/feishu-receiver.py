@@ -13,9 +13,37 @@ SCRIPT_DIR = Path(__file__).resolve().parent.parent
 LOGS_DIR = SCRIPT_DIR / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOGS_DIR / "feishu-receiver.log"
-WORK_DIR = Path(os.environ.get("FEISHU_RECEIVER_WORKDIR", "/home/user/workspace"))
-BOT_NAME = os.environ.get("FEISHU_RECEIVER_BOT_NAME", "我的飞书机器人")
-CLAUDE_TIMEOUT_SECONDS = int(os.environ.get("FEISHU_RECEIVER_CLAUDE_TIMEOUT", "300"))
+CONFIG_FILE = SCRIPT_DIR / "config"
+
+# 默认值
+_defaults: dict[str, str] = {
+    "FEISHU_RECEIVER_WORKDIR": "/home/user/workspace",
+    "FEISHU_RECEIVER_BOT_NAME": "我的飞书机器人",
+    "FEISHU_RECEIVER_CLAUDE_TIMEOUT": "300",
+}
+
+
+def load_config() -> dict[str, str]:
+    """加载配置文件，环境变量优先于配置文件，配置文件优先于默认值。"""
+    cfg: dict[str, str] = dict(_defaults)
+    if CONFIG_FILE.is_file():
+        for line in CONFIG_FILE.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            cfg[key.strip()] = value.strip().strip('"').strip("'")
+    for key in cfg:
+        env_val = os.environ.get(key)
+        if env_val:
+            cfg[key] = env_val
+    return cfg
+
+
+_config = load_config()
+WORK_DIR = Path(_config["FEISHU_RECEIVER_WORKDIR"])
+BOT_NAME = _config["FEISHU_RECEIVER_BOT_NAME"]
+CLAUDE_TIMEOUT_SECONDS = int(_config["FEISHU_RECEIVER_CLAUDE_TIMEOUT"])
 
 
 def log(message: str, level: str = "INFO") -> None:

@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$InstallDir = "$env:LOCALAPPDATA\feishu-receiver"
+$InstallDir = "$env:USERPROFILE\.feishu-receiver"
 $LogDir = "$InstallDir\logs"
 $RepoUrl = 'https://github.com/gochangc/feishu-receiver.git'
 

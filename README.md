@@ -15,14 +15,16 @@
 ```
 feishu-receiver/
 ├── bin/
-│   └── feishu-receiver        # 主控脚本（start/stop/status/restart/foreground）
+│   ├── feishu-receiver        # 主控脚本
+│   └── feishu-receiver.bat    # Windows 入口包装器
 ├── lib/
 │   └── feishu-receiver.py     # 核心服务脚本
-├── logs/                      # 日志目录（运行时生成，已 gitignore）
+├── logs/                      # 日志目录（运行时生成）
+├── config                     # 配置文件（setup 命令生成）
 ├── install.sh                 # 安装脚本（Linux/macOS）
 ├── install.ps1                # 安装脚本（Windows PowerShell）
 ├── uninstall.sh               # 卸载脚本
-└── README.md                  # 本文件
+└── README.md
 ```
 
 ## 前置依赖
@@ -93,6 +95,20 @@ curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/insta
 
 安装完成后，命令 `feishu-receiver` 会加入 PATH。
 
+### 首次配置
+
+```bash
+feishu-receiver setup
+```
+
+交互式向导会引导你完成：
+1. 飞书 App ID / App Secret 配置
+2. Claude Code 工作目录
+3. 机器人名称
+4. 调用超时时间
+
+配置保存在 `$INSTALL_DIR/config`，可通过环境变量覆盖。
+
 ### 独立模式（不依赖 systemd）
 
 ```bash
@@ -101,6 +117,7 @@ feishu-receiver stop         # 停止服务
 feishu-receiver status       # 查看状态
 feishu-receiver restart      # 重启服务
 feishu-receiver foreground   # 前台运行（Ctrl+C 停止）
+feishu-receiver setup        # 重新配置
 ```
 
 ### systemd 模式
@@ -130,7 +147,21 @@ journalctl --user -u feishu-receiver -f      # 用户级
 sudo journalctl -u feishu-receiver -f        # 系统级
 ```
 
-## 环境变量
+## 配置
+
+配置优先级：**环境变量 > 配置文件 > 默认值**
+
+### 配置文件
+
+运行 `feishu-receiver setup` 交互式配置，或手动编辑 `~/.feishu-receiver/config`：
+
+```ini
+FEISHU_RECEIVER_WORKDIR=/home/user/workspace
+FEISHU_RECEIVER_BOT_NAME=我的飞书机器人
+FEISHU_RECEIVER_CLAUDE_TIMEOUT=300
+```
+
+### 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
@@ -138,7 +169,7 @@ sudo journalctl -u feishu-receiver -f        # 系统级
 | `FEISHU_RECEIVER_BOT_NAME` | 机器人名称（用于过滤 @提及） | `我的飞书机器人` |
 | `FEISHU_RECEIVER_CLAUDE_TIMEOUT` | Claude Code 调用超时（秒） | `300` |
 
-示例：
+临时覆盖配置：
 
 ```bash
 FEISHU_RECEIVER_WORKDIR=/home/user/project feishu-receiver start
@@ -152,7 +183,7 @@ FEISHU_RECEIVER_WORKDIR=/home/user/project feishu-receiver start
 实时查看：
 
 ```bash
-tail -f ~/.local/share/feishu-receiver/logs/feishu-receiver.log
+tail -f ~/.feishu-receiver/logs/feishu-receiver.log
 ```
 
 ## 卸载
@@ -166,7 +197,7 @@ sudo ./uninstall.sh      # 系统级
 
 **Windows：**
 
-删除安装目录 `%LOCALAPPDATA%\feishu-receiver` 并从系统 PATH 中移除即可。
+删除安装目录 `%USERPROFILE%\.feishu-receiver` 并从系统 PATH 中移除即可。
 
 ## 常见问题
 

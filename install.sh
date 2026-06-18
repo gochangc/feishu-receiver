@@ -40,7 +40,7 @@ if [[ "$INSTALL_MODE" == "system" ]]; then
     BIN_DIR="/usr/local/bin"
     SYSTEMD_DIR="/etc/systemd/system"
 else
-    INSTALL_DIR="${HOME}/.local/share/feishu-receiver"
+    INSTALL_DIR="${HOME}/.feishu-receiver"
     BIN_DIR="${HOME}/.local/bin"
     SYSTEMD_DIR="${HOME}/.config/systemd/user"
     mkdir -p "$BIN_DIR" "$SYSTEMD_DIR"
