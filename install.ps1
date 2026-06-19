@@ -45,6 +45,9 @@ Invoke-WebRequest -Uri "$RawBase/lib/feishu-receiver.py" -OutFile "$InstallDir\l
 
 Write-Host '==> 创建命令入口...'
 Copy-Item "$InstallDir\bin\feishu-receiver.bat" "$InstallDir\feishu-receiver.bat"
+# 修复 .bat 换行符为 CRLF（raw 文件为 LF，cmd.exe 需要 CRLF）
+$batContent = [System.IO.File]::ReadAllText("$InstallDir\feishu-receiver.bat") -replace "(?<!\r)\n", "`r`n"
+[System.IO.File]::WriteAllText("$InstallDir\feishu-receiver.bat", $batContent)
 
 Write-Host '==> 添加 PATH...'
 $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
