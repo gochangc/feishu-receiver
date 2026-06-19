@@ -272,9 +272,9 @@ cmd_uninstall() {
     echo "==> 删除命令快捷方式..."
     rm -f "${HOME}/.local/bin/feishu-receiver"
 
-    # 删除安装目录
-    echo "==> 删除安装目录..."
-    rm -rf "$BASE_DIR"
+    # 删除可安全删除的内容（排除自身所在目录，由调用方清理）
+    echo "==> 清理文件..."
+    rm -rf "$LIB_DIR" "$LOGS_DIR" "$PID_FILE" "$CONFIG_FILE" 2>/dev/null || true
 
     echo ""
     echo "卸载完成！"
