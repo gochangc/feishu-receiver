@@ -32,6 +32,19 @@ WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/user/workspace}"
 BOT_NAME="${FEISHU_RECEIVER_BOT_NAME:-我的飞书机器人}"
 CLAUDE_TIMEOUT="${FEISHU_RECEIVER_CLAUDE_TIMEOUT:-300}"
 
+# 自动检测可用的 Python 命令（Windows 上 python3 可能是 Store 占位符）
+detect_python() {
+    for py in python3 python; do
+        if command -v "$py" &>/dev/null && "$py" -c "print('ok')" 2>/dev/null | grep -q ok; then
+            echo "$py"
+            return
+        fi
+    done
+    # 回退到 python3（如果都不可用，让后续步骤报错）
+    echo "python3"
+}
+PYTHON="$(detect_python)"
+
 cmd_help() {
     cat <<EOF
 飞书消息接收服务 - 主控脚本
@@ -170,7 +183,7 @@ cmd_start() {
 
     echo "==> 启动飞书消息接收服务..."
     mkdir -p "$LOGS_DIR"
-    nohup python3 "$LIB_DIR/feishu-receiver.py" >> "$LOGS_DIR/feishu-receiver.log" 2>&1 &
+    nohup $PYTHON "$LIB_DIR/feishu-receiver.py" >> "$LOGS_DIR/feishu-receiver.log" 2>&1 &
     local pid=$!
     echo "$pid" > "$PID_FILE"
     sleep 1
@@ -241,7 +254,7 @@ cmd_restart() {
 cmd_foreground() {
     echo "==> 前台启动飞书消息接收服务 (按 Ctrl+C 停止)..."
     cd "$WORK_DIR" || { echo "错误: 无法进入工作目录 $WORK_DIR" >&2; exit 1; }
-    exec python3 "$LIB_DIR/feishu-receiver.py"
+    exec $PYTHON "$LIB_DIR/feishu-receiver.py"
 }
 
 cmd_uninstall() {

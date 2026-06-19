@@ -62,9 +62,16 @@ def clean_message(content: str) -> str:
     return text or content.strip()
 
 
+def _resolve_cmd(args: list[str]) -> list[str]:
+    """Windows 上无扩展名的命令自动加 .cmd（lark-cli、claude 等的 npm 包装器）"""
+    if sys.platform == "win32" and "/" not in args[0] and "\\" not in args[0] and "." not in args[0]:
+        return [args[0] + ".cmd"] + args[1:]
+    return args
+
+
 def run_command(args: list[str], *, input_text: str | None = None, timeout: int = 120, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        args,
+        _resolve_cmd(args),
         input=input_text,
         capture_output=True,
         text=True,
@@ -89,7 +96,7 @@ def run_claude(args: list[str], prompt: str) -> subprocess.CompletedProcess[str]
     ):
         env.pop(key, None)
     return subprocess.run(
-        args,
+        _resolve_cmd(args),
         input=prompt,
         capture_output=True,
         text=True,
@@ -183,7 +190,12 @@ def process_event(event: dict[str, Any]) -> None:
 
 def check_lark_config() -> bool:
     result = run_command(["lark-cli", "auth", "status"], timeout=10, cwd=Path.cwd())
-    if result.returncode != 0 or "not configured" in result.stdout.lower():
+    # lark-cli 在已配置但未 bind 时也返回非零，只检查是否真的未配置
+    combined = (result.stdout + result.stderr).lower()
+    if "not configured" in combined or "not_configured" in combined:
+        if "not bound" in combined or "hermes context" in combined:
+            log("lark-cli 有凭证但未绑定身份，尝试继续。可运行 lark-cli config bind 完成绑定。", "WARN")
+            return True
         log("lark-cli 未配置，请先执行:", "ERROR")
         log("  lark-cli config init --app-id <AppID> --app-secret-stdin --brand feishu", "ERROR")
         return False
@@ -202,7 +214,7 @@ def main() -> None:
         sys.exit(1)
 
     process = subprocess.Popen(
-        ["lark-cli", "event", "consume", "im.message.receive_v1", "--as", "bot", "--quiet"],
+        _resolve_cmd(["lark-cli", "event", "consume", "im.message.receive_v1", "--as", "bot", "--quiet"]),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         stdin=subprocess.PIPE,
