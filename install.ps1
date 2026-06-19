@@ -58,10 +58,13 @@ if ($userPath -notlike "*$InstallDir*") {
         $newPath = $InstallDir
     }
     cmd /c "setx PATH `"$newPath`" 2>nul"
-    $env:Path = $env:Path + ';' + $InstallDir
     Write-Host '  已添加到用户 PATH'
 } else {
     Write-Host '  已在 PATH 中'
+}
+# 无论如何都更新当前会话 PATH
+if ($env:Path -notlike "*$InstallDir*") {
+    $env:Path = $env:Path + ';' + $InstallDir
 }
 
 Write-Host ''
