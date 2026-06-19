@@ -31,8 +31,18 @@ if errorlevel 1 (
 )
 
 :done
-REM 卸载时清理安装目录
+REM 卸载时清理安装目录和 PATH
 if /i "%~1"=="uninstall" (
     cd /d "%USERPROFILE%"
     rmdir /s /q "%INSTALL_DIR%" 2>nul
+    REM 从用户 PATH 注册表中移除安装目录
+    for /f "skip=2 tokens=2*" %%a in ('reg query "HKCU\Environment" /v PATH 2^>nul') do (
+        set "UPATH=%%b"
+        setlocal enabledelayedexpansion
+        set "UPATH=!UPATH:;%INSTALL_DIR%;=;!"
+        set "UPATH=!UPATH:;%INSTALL_DIR%=!"
+        set "UPATH=!UPATH:%INSTALL_DIR%;=!"
+        reg add "HKCU\Environment" /v PATH /t REG_EXPAND_SZ /d "!UPATH!" /f >nul 2>nul
+        endlocal
+    )
 )
