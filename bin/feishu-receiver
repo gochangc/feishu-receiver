@@ -4,16 +4,13 @@ set -euo pipefail
 # 飞书消息接收服务主控脚本
 # 用法: feishu-receiver {start|stop|status|restart|foreground|setup|help}
 
-# 安装目录（代码所在位置）
+# 安装目录 = 数据目录（代码、配置、日志等都在这里）
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || readlink "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 LIB_DIR="$INSTALL_DIR/lib"
-
-# 数据目录（配置、日志、数据库等）
-DATA_DIR="${HOME}/.feishu-receiver"
-CONFIG_FILE="$DATA_DIR/config.json"
-PID_FILE="$DATA_DIR/feishu-receiver.pid"
+CONFIG_FILE="$INSTALL_DIR/config.json"
+PID_FILE="$INSTALL_DIR/feishu-receiver.pid"
 
 # 自动检测 Python
 detect_python() {
@@ -180,7 +177,7 @@ cmd_setup() {
     echo ""
 
     # 写入配置文件
-    mkdir -p "$DATA_DIR"
+    mkdir -p "$INSTALL_DIR"
     cat > "$CONFIG_FILE" <<EOF
 {
   "feishu": {
@@ -239,15 +236,15 @@ cmd_start() {
     fi
 
     echo "==> 启动飞书消息接收服务..."
-    mkdir -p "$DATA_DIR/logs"
-    PYTHONPATH="$INSTALL_DIR" nohup $PYTHON "$LIB_DIR/feishu-receiver.py" >> "$DATA_DIR/logs/feishu-receiver.log" 2>&1 &
+    mkdir -p "$INSTALL_DIR/logs"
+    PYTHONPATH="$INSTALL_DIR" nohup $PYTHON "$LIB_DIR/feishu-receiver.py" >> "$INSTALL_DIR/logs/feishu-receiver.log" 2>&1 &
     local pid=$!
     echo "$pid" > "$PID_FILE"
     sleep 1
 
     if kill -0 "$pid" 2>/dev/null; then
         echo "服务已启动 (PID: $pid)"
-        echo "日志: tail -f $DATA_DIR/logs/feishu-receiver.log"
+        echo "日志: tail -f $INSTALL_DIR/logs/feishu-receiver.log"
     else
         echo "服务启动失败，请查看日志"
         rm -f "$PID_FILE"
@@ -342,14 +339,13 @@ cmd_uninstall() {
     echo "==> 删除命令快捷方式..."
     rm -f "${HOME}/.local/bin/feishu-receiver"
 
-    # 删除安装目录（代码）
+    # 删除安装目录（代码、配置、日志等）
     echo "==> 清理安装文件..."
     rm -rf "$INSTALL_DIR" 2>/dev/null || true
 
     echo ""
     echo "卸载完成！"
-    echo "数据目录保留在: $DATA_DIR"
-    echo "如需完全删除，请手动执行: rm -rf $DATA_DIR"
+    echo "已删除: $INSTALL_DIR"
 }
 
 main() {

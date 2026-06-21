@@ -9,13 +9,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# 路径配置
+# 安装目录 = 数据目录（代码、配置、日志等都在这里）
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $InstallDir = Split-Path -Parent $ScriptDir
 $LibDir = Join-Path $InstallDir "lib"
-$DataDir = Join-Path $env:USERPROFILE ".feishu-receiver"
-$ConfigFile = Join-Path $DataDir "config.json"
-$PidFile = Join-Path $DataDir "feishu-receiver.pid"
+$ConfigFile = Join-Path $InstallDir "config.json"
+$PidFile = Join-Path $InstallDir "feishu-receiver.pid"
 
 # 检测 Python
 function Find-Python {
@@ -156,7 +155,7 @@ function Invoke-Setup {
     Write-Host ""
 
     # 写入配置文件
-    New-Item -ItemType Directory -Force $DataDir | Out-Null
+    New-Item -ItemType Directory -Force $InstallDir | Out-Null
     $config = @{
         feishu = @{
             app_id = $appId
@@ -213,7 +212,7 @@ function Start-FeishuService {
     }
 
     Write-Host "==> 启动飞书消息接收服务..."
-    $logDir = Join-Path $DataDir "logs"
+    $logDir = Join-Path $InstallDir "logs"
     New-Item -ItemType Directory -Force $logDir | Out-Null
 
     $scriptPath = Join-Path $LibDir "feishu-receiver.py"
@@ -303,14 +302,13 @@ function Invoke-Uninstall {
         Remove-Item $PidFile -ErrorAction SilentlyContinue
     }
 
-    # 删除安装目录（代码）
+    # 删除安装目录（代码、配置、日志等）
     Write-Host "==> 清理安装文件..."
     Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
 
     Write-Host ""
     Write-Host "卸载完成！"
-    Write-Host "数据目录保留在: $DataDir"
-    Write-Host "如需完全删除，请手动执行: Remove-Item -Recurse -Force $DataDir"
+    Write-Host "已删除: $InstallDir"
 }
 
 # 主逻辑
