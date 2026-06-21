@@ -20,6 +20,7 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "max_history": 50,
         "timeout": 3600,
+        "auto_summarize": True,
     },
     "workdir": str(Path.home() / "workspace"),
     "logging": {

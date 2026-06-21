@@ -159,6 +159,10 @@ function Invoke-Setup {
 
     $maxHistory = Read-Host "  最大会话历史条数 (默认: 50)"
     if (-not $maxHistory) { $maxHistory = 50 }
+
+    $autoSummarizeInput = Read-Host "  达到上限时自动总结? (Y/n)"
+    $autoSummarize = "true"
+    if ($autoSummarizeInput -match "^[Nn]") { $autoSummarize = "false" }
     Write-Host ""
 
     # 日志配置
@@ -184,6 +188,7 @@ function Invoke-Setup {
             enabled = [System.Convert]::ToBoolean($sessionEnabled)
             max_history = [int]$maxHistory
             timeout = 3600
+            auto_summarize = [System.Convert]::ToBoolean($autoSummarize)
         }
         workdir = $workDir
         logging = @{
@@ -202,6 +207,7 @@ function Invoke-Setup {
     Write-Host "  工作目录 : $workDir"
     Write-Host "  AI 工具  : $aiTool"
     Write-Host "  会话模式 : $sessionEnabled"
+    Write-Host "  自动总结 : $autoSummarize"
     Write-Host "  日志级别 : $logLevel"
     Write-Host ""
 

@@ -84,6 +84,10 @@ class MessageProcessor:
         session_enabled = self._config.get("session.enabled", True)
         history = []
         if session_enabled:
+            # 检查是否需要自动总结
+            auto_summarize = self._config.get("session.auto_summarize", True)
+            if auto_summarize:
+                self._auto_summarize(sender_id)
             history = self._session.get_session(sender_id)
 
         # 构建提示词
@@ -105,13 +109,35 @@ class MessageProcessor:
 
         return response
 
+    def _auto_summarize(self, sender_id: str) -> None:
+        """检查并执行自动总结：当消息数达到 max_history 时触发"""
+        max_history = self._config.get("session.max_history", 50)
+        count = self._session.count_messages(sender_id)
+        if count < max_history:
+            return
+
+        try:
+            adapter = self.get_adapter()
+            workdir = Path(self._config.get("workdir", "."))
+            timeout = self._config.get("ai_tool.timeout", 300)
+            self._session.summarize_and_reset(sender_id, adapter, workdir, timeout)
+        except Exception as e:
+            # 总结失败不影响正常消息处理
+            import logging
+            logging.getLogger(__name__).warning(f"自动总结异常: {e}")
+
     def _build_prompt(self, message: str, history: list[dict], sender_id: str) -> str:
         """构建完整提示词"""
         parts = []
         parts.append(f"飞书用户（open_id: {sender_id}）发送消息：")
 
+        # 加入历史总结（如果有）
+        summary = self._session.get_summary(sender_id)
+        if summary:
+            parts.append(f"\n历史总结：\n{summary}")
+
         if history:
-            parts.append("\n会话历史：")
+            parts.append("\n最近会话：")
             for msg in history[-10:]:  # 只取最近 10 条
                 role = "用户" if msg["role"] == "user" else "助手"
                 parts.append(f"{role}: {msg['content'][:200]}")

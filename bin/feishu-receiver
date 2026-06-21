@@ -164,6 +164,12 @@ cmd_setup() {
     if [[ -n "$input_history" ]]; then
         max_history="$input_history"
     fi
+
+    local auto_summarize="true"
+    read -rp "  达到上限时自动总结? (Y/n): " input_summarize
+    if [[ "$input_summarize" =~ ^[Nn] ]]; then
+        auto_summarize="false"
+    fi
     echo ""
 
     # 日志配置
@@ -192,7 +198,8 @@ cmd_setup() {
   "session": {
     "enabled": $session_enabled,
     "max_history": $max_history,
-    "timeout": 3600
+    "timeout": 3600,
+    "auto_summarize": $auto_summarize
   },
   "workdir": "$work_dir",
   "logging": {
@@ -211,6 +218,7 @@ EOF
     echo "  工作目录 : $work_dir"
     echo "  AI 工具  : $ai_tool"
     echo "  会话模式 : $session_enabled"
+    echo "  自动总结 : $auto_summarize"
     echo "  日志级别 : $log_level"
     echo ""
 
