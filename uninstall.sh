@@ -33,10 +33,12 @@ fi
 echo "==> 删除命令快捷方式..."
 rm -f "$BIN_DIR/feishu-receiver"
 
-echo "==> 删除安装目录..."
+echo "==> 删除安装目录（保留配置文件）..."
 if [[ -d "$INSTALL_DIR" ]]; then
-    rm -rf "$INSTALL_DIR"
+    rm -rf "$INSTALL_DIR/lib" "$INSTALL_DIR/bin" "$INSTALL_DIR/logs"
 fi
 
 echo ""
 echo "卸载完成！"
+echo "配置文件保留在: $INSTALL_DIR/config.json"
+echo "如需完全删除，请手动执行: rm -rf $INSTALL_DIR"
