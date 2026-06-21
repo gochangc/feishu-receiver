@@ -4,8 +4,15 @@
 
 param(
     [Parameter(Position=0)]
-    [string]$Command = "help"
+    [string]$Command = "help",
+    [switch]$h,
+    [switch]$help
 )
+
+# 处理帮助标志
+if ($h -or $help -or $Command -eq "--help") {
+    $Command = "help"
+}
 
 $ErrorActionPreference = "Stop"
 
