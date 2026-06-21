@@ -42,7 +42,7 @@ class ConfigManager:
     def load(self) -> dict[str, Any]:
         """加载配置文件，不存在则使用默认配置"""
         if self._path.is_file():
-            with open(self._path, "r", encoding="utf-8") as f:
+            with open(self._path, "r", encoding="utf-8-sig") as f:
                 self._config = json.load(f)
         else:
             self._config = copy.deepcopy(DEFAULT_CONFIG)

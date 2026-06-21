@@ -201,7 +201,7 @@ function Invoke-Setup {
     Write-Host "========================================"
     Write-Host "配置完成！"
     Write-Host ""
-    Write-Host "启动服务: .\feishu-receiver.ps1 start"
+    Write-Host "启动服务: feishu-receiver start"
     Write-Host "========================================"
 }
 
