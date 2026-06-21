@@ -55,6 +55,8 @@ class SessionManager:
 
     def cleanup_expired(self) -> None:
         """清理过期会话"""
-        cutoff = datetime.now() - timedelta(seconds=self._timeout)
+        cutoff = datetime.utcnow() - timedelta(seconds=self._timeout)
+        # 使用与 SQLite CURRENT_TIMESTAMP 一致的格式（空格分隔，无 T）
+        cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
         with sqlite3.connect(str(self._db_path)) as conn:
-            conn.execute("DELETE FROM sessions WHERE created_at < ?", (cutoff.isoformat(),))
+            conn.execute("DELETE FROM sessions WHERE created_at < ?", (cutoff_str,))
