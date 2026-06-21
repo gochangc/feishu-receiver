@@ -4,35 +4,15 @@ set -euo pipefail
 # 飞书消息接收服务主控脚本
 # 用法: feishu-receiver {start|stop|status|restart|foreground|setup|help}
 
-# 解析 symlink 的真实路径，确保通过快捷方式调用时路径正确
+# 解析路径
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || readlink "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 LIB_DIR="$BASE_DIR/lib"
-LOGS_DIR="$BASE_DIR/logs"
+CONFIG_FILE="$BASE_DIR/config.json"
 PID_FILE="$BASE_DIR/feishu-receiver.pid"
-CONFIG_FILE="$BASE_DIR/config"
 
-# 加载配置文件（环境变量优先级更高，不覆盖已设置的值）
-load_config() {
-    if [[ -f "$CONFIG_FILE" ]]; then
-        while IFS='=' read -r key value; do
-            key=$(echo "$key" | xargs)
-            value=$(echo "$value" | xargs | sed 's/^["'"'"']//;s/["'"'"']$//')
-            if [[ -n "$key" && ! "$key" =~ ^# ]]; then
-                export "${key}=${value}"
-            fi
-        done < "$CONFIG_FILE"
-    fi
-}
-load_config
-
-# 默认值（环境变量优先于配置文件）
-WORK_DIR="${FEISHU_RECEIVER_WORKDIR:-/home/user/workspace}"
-BOT_NAME="${FEISHU_RECEIVER_BOT_NAME:-我的飞书机器人}"
-CLAUDE_TIMEOUT="${FEISHU_RECEIVER_CLAUDE_TIMEOUT:-300}"
-
-# 自动检测可用的 Python 命令（Windows 上 python3 可能是 Store 占位符）
+# 自动检测 Python
 detect_python() {
     for py in python3 python; do
         if command -v "$py" &>/dev/null && "$py" -c "print('ok')" 2>/dev/null | grep -q ok; then
@@ -40,10 +20,20 @@ detect_python() {
             return
         fi
     done
-    # 回退到 python3（如果都不可用，让后续步骤报错）
     echo "python3"
 }
 PYTHON="$(detect_python)"
+
+# 加载配置
+load_config() {
+    if [[ -f "$CONFIG_FILE" ]]; then
+        WORK_DIR=$($PYTHON -c "import json; print(json.load(open('$CONFIG_FILE')).get('workdir', '$HOME/workspace'))")
+        BOT_NAME=$($PYTHON -c "import json; print(json.load(open('$CONFIG_FILE')).get('feishu', {}).get('bot_name', '我的飞书机器人'))")
+    else
+        WORK_DIR="${HOME}/workspace"
+        BOT_NAME="我的飞书机器人"
+    fi
+}
 
 cmd_help() {
     cat <<EOF
@@ -62,7 +52,6 @@ cmd_help() {
   help        显示此帮助信息
 
 配置: $CONFIG_FILE
-日志: $LOGS_DIR
 EOF
 }
 
@@ -75,7 +64,7 @@ cmd_setup() {
     # 检查依赖
     echo "==> 检查依赖..."
     local missing=()
-    for cmd in python3 lark-cli claude; do
+    for cmd in python3 lark-cli; do
         if ! command -v "$cmd" &>/dev/null; then
             echo "  错误: $cmd 未找到" >&2
             missing+=("$cmd")
@@ -88,74 +77,115 @@ cmd_setup() {
     echo "  依赖检查通过"
     echo ""
 
-    # 配置 lark-cli
+    # 配置飞书应用
     echo "==> 飞书应用配置"
     echo "  需要从飞书开放平台获取 App ID 和 App Secret"
     echo "  申请地址: https://open.feishu.cn/app"
     echo ""
 
-    local lark_status
-    lark_status=$(lark-cli auth status 2>&1 || true)
-    if echo "$lark_status" | grep -q "not configured"; then
-        read -rp "  请输入 App ID: " app_id
-        read -rsp "  请输入 App Secret (输入不会显示): " app_secret
-        echo ""
-        if [[ -n "$app_id" && -n "$app_secret" ]]; then
-            echo "$app_secret" | lark-cli config init --app-id "$app_id" --app-secret-stdin --brand feishu
-            echo "  lark-cli 配置完成"
-        else
-            echo "  已跳过 lark-cli 配置（需在安装后手动配置）"
-        fi
-    else
-        echo "  lark-cli 已配置，跳过"
+    local app_id app_secret
+    read -rp "  请输入 App ID: " app_id
+    read -rsp "  请输入 App Secret (输入不会显示): " app_secret
+    echo ""
+
+    # 配置 lark-cli
+    if [[ -n "$app_id" && -n "$app_secret" ]]; then
+        echo "$app_secret" | lark-cli config init --app-id "$app_id" --app-secret-stdin --brand feishu
+        echo "  lark-cli 配置完成"
+    fi
+    echo ""
+
+    # 配置 AI 工具
+    echo "==> AI 工具配置"
+    echo "  可选: claude, codex, opencode"
+    local ai_tool="claude"
+    read -rp "  默认 AI 工具 (默认: claude): " input_tool
+    if [[ -n "$input_tool" ]]; then
+        ai_tool="$input_tool"
+    fi
+
+    # 检查工具是否可用
+    if ! command -v "$ai_tool" &>/dev/null; then
+        echo "  警告: $ai_tool 未找到，请确保已安装" >&2
+    fi
+
+    local ai_timeout=300
+    read -rp "  超时秒数 (默认: 300): " input_timeout
+    if [[ -n "$input_timeout" ]]; then
+        ai_timeout="$input_timeout"
     fi
     echo ""
 
     # 工作目录
     echo "==> 工作目录配置"
-    echo "  Claude Code 将在该目录下执行（建议用项目目录）"
-    read -rp "  工作目录 (默认: $WORK_DIR): " input_workdir
+    local work_dir="${HOME}/workspace"
+    read -rp "  工作目录 (默认: $work_dir): " input_workdir
     if [[ -n "$input_workdir" ]]; then
-        WORK_DIR="$input_workdir"
+        work_dir="$input_workdir"
     fi
     echo ""
 
-    # 机器人名称
-    echo "==> 机器人名称"
-    echo "  即飞书应用中设置的机器人名称，用于过滤消息中的 @提及"
-    read -rp "  机器人名称 (默认: $BOT_NAME): " input_botname
-    if [[ -n "$input_botname" ]]; then
-        BOT_NAME="$input_botname"
+    # 会话配置
+    echo "==> 会话配置"
+    local session_enabled="true"
+    read -rp "  启用会话模式? (Y/n): " input_session
+    if [[ "$input_session" =~ ^[Nn] ]]; then
+        session_enabled="false"
+    fi
+
+    local max_history=50
+    read -rp "  最大会话历史条数 (默认: 50): " input_history
+    if [[ -n "$input_history" ]]; then
+        max_history="$input_history"
     fi
     echo ""
 
-    # 超时时间
-    echo "==> Claude Code 超时"
-    read -rp "  超时秒数 (默认: $CLAUDE_TIMEOUT): " input_timeout
-    if [[ -n "$input_timeout" ]]; then
-        CLAUDE_TIMEOUT="$input_timeout"
+    # 日志配置
+    echo "==> 日志配置"
+    local log_level="INFO"
+    echo "  可选: DEBUG, INFO, WARNING, ERROR"
+    read -rp "  日志级别 (默认: INFO): " input_level
+    if [[ -n "$input_level" ]]; then
+        log_level="$input_level"
     fi
     echo ""
 
     # 写入配置文件
     mkdir -p "$BASE_DIR"
     cat > "$CONFIG_FILE" <<EOF
-# 飞书消息接收服务配置文件
-# 生成时间: $(date)
-# 可通过环境变量覆盖以下配置
-
-FEISHU_RECEIVER_WORKDIR=$WORK_DIR
-FEISHU_RECEIVER_BOT_NAME=$BOT_NAME
-FEISHU_RECEIVER_CLAUDE_TIMEOUT=$CLAUDE_TIMEOUT
+{
+  "feishu": {
+    "app_id": "$app_id",
+    "app_secret": "$app_secret",
+    "bot_name": "我的飞书机器人"
+  },
+  "ai_tool": {
+    "default": "$ai_tool",
+    "timeout": $ai_timeout
+  },
+  "session": {
+    "enabled": $session_enabled,
+    "max_history": $max_history,
+    "timeout": 3600
+  },
+  "workdir": "$work_dir",
+  "logging": {
+    "level": "$log_level",
+    "file": "logs/feishu-receiver.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  }
+}
 EOF
     echo "==> 配置已保存到: $CONFIG_FILE"
     echo ""
 
     # 验证
     echo "==> 验证配置..."
-    echo "  工作目录 : $WORK_DIR"
-    echo "  机器人名 : $BOT_NAME"
-    echo "  超时时间 : ${CLAUDE_TIMEOUT}s"
+    echo "  工作目录 : $work_dir"
+    echo "  AI 工具  : $ai_tool"
+    echo "  会话模式 : $session_enabled"
+    echo "  日志级别 : $log_level"
     echo ""
 
     # 飞书权限提醒
@@ -164,13 +194,13 @@ EOF
     echo "  - im:message                   (发送消息)"
     echo "  - im:message.p2p_msg:readonly  (读取私聊消息)"
     echo ""
-    echo "然后在飞书搜索 '$BOT_NAME' 发起私聊即可。"
-    echo ""
     echo "启动服务: $(basename "$0") start"
     echo "========================================"
 }
 
 cmd_start() {
+    load_config
+
     if [[ -f "$PID_FILE" ]]; then
         local pid
         pid=$(cat "$PID_FILE")
@@ -182,15 +212,15 @@ cmd_start() {
     fi
 
     echo "==> 启动飞书消息接收服务..."
-    mkdir -p "$LOGS_DIR"
-    nohup $PYTHON "$LIB_DIR/feishu-receiver.py" >> "$LOGS_DIR/feishu-receiver.log" 2>&1 &
+    mkdir -p "$BASE_DIR/logs"
+    nohup $PYTHON "$LIB_DIR/feishu-receiver.py" >> "$BASE_DIR/logs/feishu-receiver.log" 2>&1 &
     local pid=$!
     echo "$pid" > "$PID_FILE"
     sleep 1
 
     if kill -0 "$pid" 2>/dev/null; then
         echo "服务已启动 (PID: $pid)"
-        echo "日志: tail -f $LOGS_DIR/feishu-receiver.log"
+        echo "日志: tail -f $BASE_DIR/logs/feishu-receiver.log"
     else
         echo "服务启动失败，请查看日志"
         rm -f "$PID_FILE"
@@ -239,7 +269,6 @@ cmd_status() {
     pid=$(cat "$PID_FILE")
     if kill -0 "$pid" 2>/dev/null; then
         echo "状态: 运行中 (PID: $pid)"
-        echo "日志: $LOGS_DIR/feishu-receiver.log"
     else
         echo "状态: 未运行 (PID 文件残留: $pid)"
     fi
@@ -252,6 +281,7 @@ cmd_restart() {
 }
 
 cmd_foreground() {
+    load_config
     echo "==> 前台启动飞书消息接收服务 (按 Ctrl+C 停止)..."
     cd "$WORK_DIR" || { echo "错误: 无法进入工作目录 $WORK_DIR" >&2; exit 1; }
     exec $PYTHON "$LIB_DIR/feishu-receiver.py"
@@ -285,12 +315,13 @@ cmd_uninstall() {
     echo "==> 删除命令快捷方式..."
     rm -f "${HOME}/.local/bin/feishu-receiver"
 
-    # 删除可安全删除的内容（排除自身所在目录，由调用方清理）
+    # 删除可安全删除的内容
     echo "==> 清理文件..."
-    rm -rf "$LIB_DIR" "$LOGS_DIR" "$PID_FILE" "$CONFIG_FILE" 2>/dev/null || true
+    rm -rf "$BASE_DIR/lib" "$BASE_DIR/logs" "$BASE_DIR/bin" "$PID_FILE" 2>/dev/null || true
 
     echo ""
     echo "卸载完成！"
+    echo "配置文件保留在: $CONFIG_FILE"
 }
 
 main() {
