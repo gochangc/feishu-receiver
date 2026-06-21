@@ -64,7 +64,7 @@ $batContent = @"
 @echo off
 setlocal
 set "SCRIPT_DIR=%~dp0"
-set "PS_SCRIPT=%SCRIPT_DIR%feishu-receiver.ps1"
+set "PS_SCRIPT=%SCRIPT_DIR%bin\feishu-receiver.ps1"
 where pwsh.exe >nul 2>&1
 if %errorlevel% equ 0 (
     pwsh -ExecutionPolicy Bypass -File "%PS_SCRIPT%" %*
