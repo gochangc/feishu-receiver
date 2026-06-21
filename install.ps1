@@ -1,3 +1,4 @@
+# install.ps1
 # 飞书消息接收服务 - PowerShell 安装脚本
 # 用法: irm https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.ps1 | iex
 
@@ -7,14 +8,8 @@ $InstallDir = "$env:USERPROFILE\.feishu-receiver"
 $LogDir = "$InstallDir\logs"
 $RawBase = 'https://raw.githubusercontent.com/gochangc/feishu-receiver/main'
 
-if ($env:FEISHU_RECEIVER_WORKDIR) {
-    $WorkDir = $env:FEISHU_RECEIVER_WORKDIR
-} else {
-    $WorkDir = "$env:USERPROFILE\workspace"
-}
-
 Write-Host '==> 检查依赖...' -ForegroundColor Cyan
-foreach ($cmd in @('python3', 'lark-cli', 'claude')) {
+foreach ($cmd in @('python', 'lark-cli')) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
         Write-Host "  错误: $cmd 未找到" -ForegroundColor Red
         exit 1
@@ -38,15 +33,46 @@ Write-Host '==> 下载文件...'
 if (Test-Path $InstallDir) {
     Remove-Item -Recurse -Force $InstallDir
 }
-New-Item -ItemType Directory -Force $InstallDir\bin, $InstallDir\lib, $LogDir 2>$null | Out-Null
-Invoke-WebRequest -Uri "$RawBase/bin/feishu-receiver" -OutFile "$InstallDir\bin\feishu-receiver"
-Invoke-WebRequest -Uri "$RawBase/bin/feishu-receiver.bat" -OutFile "$InstallDir\bin\feishu-receiver.bat"
-Invoke-WebRequest -Uri "$RawBase/lib/feishu-receiver.py" -OutFile "$InstallDir\lib\feishu-receiver.py"
+New-Item -ItemType Directory -Force $InstallDir\bin, $InstallDir\lib\adapters, $InstallDir\lib\utils, $LogDir | Out-Null
+
+$files = @(
+    "bin/feishu-receiver",
+    "bin/feishu-receiver.ps1",
+    "lib/feishu-receiver.py",
+    "lib/config_manager.py",
+    "lib/session_manager.py",
+    "lib/message_processor.py",
+    "lib/logger.py",
+    "lib/adapters/__init__.py",
+    "lib/adapters/base.py",
+    "lib/adapters/claude.py",
+    "lib/adapters/codex.py",
+    "lib/adapters/opencode.py",
+    "lib/utils/__init__.py",
+    "lib/utils/command.py"
+)
+
+foreach ($file in $files) {
+    $url = "$RawBase/$file"
+    $outFile = Join-Path $InstallDir $file
+    Invoke-WebRequest -Uri $url -OutFile $outFile
+}
 
 Write-Host '==> 创建命令入口...'
-Copy-Item "$InstallDir\bin\feishu-receiver.bat" "$InstallDir\feishu-receiver.bat"
-# 修复 .bat 换行符为 CRLF（raw 文件为 LF，cmd.exe 需要 CRLF）
-$batContent = [System.IO.File]::ReadAllText("$InstallDir\feishu-receiver.bat") -replace "(?<!\r)\n", "`r`n"
+# 创建 .bat 入口
+$batContent = @"
+@echo off
+setlocal
+set "SCRIPT_DIR=%~dp0"
+set "PS_SCRIPT=%SCRIPT_DIR%feishu-receiver.ps1"
+where pwsh.exe >nul 2>&1
+if %errorlevel% equ 0 (
+    pwsh -ExecutionPolicy Bypass -File "%PS_SCRIPT%" %*
+    goto :done
+)
+powershell -ExecutionPolicy Bypass -File "%PS_SCRIPT%" %*
+:done
+"@
 [System.IO.File]::WriteAllText("$InstallDir\feishu-receiver.bat", $batContent)
 
 Write-Host '==> 添加 PATH...'
@@ -62,7 +88,7 @@ if ($userPath -notlike "*$InstallDir*") {
 } else {
     Write-Host '  已在 PATH 中'
 }
-# 无论如何都更新当前会话 PATH
+# 更新当前会话 PATH
 if ($env:Path -notlike "*$InstallDir*") {
     $env:Path = $env:Path + ';' + $InstallDir
 }
@@ -72,13 +98,10 @@ Write-Host '========================================' -ForegroundColor Green
 Write-Host '安装完成！' -ForegroundColor Green
 Write-Host '========================================' -ForegroundColor Green
 Write-Host "安装目录: $InstallDir"
-Write-Host "日志目录: $LogDir"
-Write-Host "工作目录: $WorkDir"
 Write-Host ''
 Write-Host '接下来请运行配置向导 (新终端窗口):'
 Write-Host ''
 Write-Host '  feishu-receiver setup'
 Write-Host ''
 Write-Host '其他命令: feishu-receiver <start|stop|status|restart|foreground>'
-Write-Host "卸载: 删除 $InstallDir 并从 PATH 移除即可"
 Write-Host '========================================' -ForegroundColor Green
