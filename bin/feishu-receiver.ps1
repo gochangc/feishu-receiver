@@ -23,12 +23,19 @@ $LibDir = Join-Path $InstallDir "lib"
 $ConfigFile = Join-Path $InstallDir "config.json"
 $PidFile = Join-Path $InstallDir "feishu-receiver.pid"
 
-# 检测 Python
+# 检测 Python（验证命令真正可用，排除 Windows Store 占位符）
 function Find-Python {
     foreach ($py in @("python3", "python")) {
         $cmd = Get-Command $py -ErrorAction SilentlyContinue
         if ($cmd) {
-            return $cmd.Source
+            try {
+                $version = & $py --version 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    return $cmd.Source
+                }
+            } catch {
+                continue
+            }
         }
     }
     Write-Host "错误: Python 未找到" -ForegroundColor Red
