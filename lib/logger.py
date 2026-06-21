@@ -28,6 +28,9 @@ class Logger:
         self._logger = logging.getLogger("feishu-receiver")
         self._logger.setLevel(self.LEVELS.get(level.upper(), logging.INFO))
 
+        # 清空已有 handler，防止重复实例化导致 handler 累积
+        self._logger.handlers.clear()
+
         # 文件处理器：自动轮转，防止单文件过大
         file_handler = logging.handlers.RotatingFileHandler(
             str(log_file),
