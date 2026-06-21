@@ -11,10 +11,11 @@ $ErrorActionPreference = "Stop"
 
 # 路径配置
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BaseDir = Split-Path -Parent $ScriptDir
-$LibDir = Join-Path $BaseDir "lib"
-$ConfigFile = Join-Path $BaseDir "config.json"
-$PidFile = Join-Path $BaseDir "feishu-receiver.pid"
+$InstallDir = Split-Path -Parent $ScriptDir
+$LibDir = Join-Path $InstallDir "lib"
+$DataDir = Join-Path $env:USERPROFILE ".feishu-receiver"
+$ConfigFile = Join-Path $DataDir "config.json"
+$PidFile = Join-Path $DataDir "feishu-receiver.pid"
 
 # 检测 Python
 function Find-Python {
@@ -33,7 +34,7 @@ $Python = Find-Python
 # 加载配置
 function Get-Config {
     if (Test-Path $ConfigFile) {
-        $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+        $config = Get-Content $ConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json
         return @{
             WorkDir = $config.workdir
             BotName = $config.feishu.bot_name
@@ -65,6 +66,140 @@ function Show-Help {
 "@
 }
 
+function Invoke-Setup {
+    Write-Host "========================================"
+    Write-Host "  飞书消息接收服务 - 配置向导"
+    Write-Host "========================================"
+    Write-Host ""
+
+    # 检查依赖
+    Write-Host "==> 检查依赖..."
+    $missing = @()
+    foreach ($cmd in @("python", "lark-cli")) {
+        if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
+            Write-Host "  错误: $cmd 未找到" -ForegroundColor Red
+            $missing += $cmd
+        }
+    }
+    if ($missing.Count -gt 0) {
+        Write-Host "请先安装: $($missing -join ', ')" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  依赖检查通过"
+    Write-Host ""
+
+    # 飞书应用配置
+    Write-Host "==> 飞书应用配置"
+    Write-Host "  需要从飞书开放平台获取 App ID 和 App Secret"
+    Write-Host "  申请地址: https://open.feishu.cn/app"
+    Write-Host ""
+    Write-Host "  请确认已在飞书开放平台完成以下配置:"
+    Write-Host ""
+    Write-Host "  1. 开通应用权限:"
+    Write-Host "     - im:message                   (发送消息)"
+    Write-Host "     - im:message.p2p_msg:readonly  (读取私聊消息)"
+    Write-Host ""
+    Write-Host "  2. 配置事件订阅:"
+    Write-Host "     - 添加事件: im.message.receive_v1 (接收消息)"
+    Write-Host ""
+    Write-Host "  3. 启用机器人能力:"
+    Write-Host "     - 进入「应用能力」->「机器人」-> 启用"
+    Write-Host ""
+
+    $appId = Read-Host "  请输入 App ID"
+    $appSecret = Read-Host "  请输入 App Secret" -AsSecureString
+    $appSecretPlain = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+        [Runtime.InteropServices.Marshal]::SecureStringToBSTR($appSecret)
+    )
+
+    # 配置 lark-cli
+    if ($appId -and $appSecretPlain) {
+        $appSecretPlain | lark-cli config init --app-id $appId --app-secret-stdin --brand feishu
+        Write-Host "  lark-cli 配置完成"
+    }
+    Write-Host ""
+
+    # 配置 AI 工具
+    Write-Host "==> AI 工具配置"
+    Write-Host "  可选: claude, codex, opencode"
+    $aiTool = Read-Host "  默认 AI 工具 (默认: claude)"
+    if (-not $aiTool) { $aiTool = "claude" }
+
+    if (-not (Get-Command $aiTool -ErrorAction SilentlyContinue)) {
+        Write-Host "  警告: $aiTool 未找到，请确保已安装" -ForegroundColor Yellow
+    }
+
+    $aiTimeout = Read-Host "  超时秒数 (默认: 300)"
+    if (-not $aiTimeout) { $aiTimeout = 300 }
+    Write-Host ""
+
+    # 工作目录
+    Write-Host "==> 工作目录配置"
+    $workDir = Read-Host "  工作目录 (默认: $env:USERPROFILE\workspace)"
+    if (-not $workDir) { $workDir = Join-Path $env:USERPROFILE "workspace" }
+    Write-Host ""
+
+    # 会话配置
+    Write-Host "==> 会话配置"
+    $sessionInput = Read-Host "  启用会话模式? (Y/n)"
+    $sessionEnabled = "true"
+    if ($sessionInput -match "^[Nn]") { $sessionEnabled = "false" }
+
+    $maxHistory = Read-Host "  最大会话历史条数 (默认: 50)"
+    if (-not $maxHistory) { $maxHistory = 50 }
+    Write-Host ""
+
+    # 日志配置
+    Write-Host "==> 日志配置"
+    Write-Host "  可选: DEBUG, INFO, WARNING, ERROR"
+    $logLevel = Read-Host "  日志级别 (默认: INFO)"
+    if (-not $logLevel) { $logLevel = "INFO" }
+    Write-Host ""
+
+    # 写入配置文件
+    New-Item -ItemType Directory -Force $DataDir | Out-Null
+    $config = @{
+        feishu = @{
+            app_id = $appId
+            app_secret = $appSecretPlain
+            bot_name = "我的飞书机器人"
+        }
+        ai_tool = @{
+            default = $aiTool
+            timeout = [int]$aiTimeout
+        }
+        session = @{
+            enabled = [System.Convert]::ToBoolean($sessionEnabled)
+            max_history = [int]$maxHistory
+            timeout = 3600
+        }
+        workdir = $workDir
+        logging = @{
+            level = $logLevel
+            file = "logs/feishu-receiver.log"
+            max_size_mb = 10
+            backup_count = 5
+        }
+    }
+    $config | ConvertTo-Json -Depth 5 | Set-Content -Path $ConfigFile -Encoding UTF8
+    Write-Host "==> 配置已保存到: $ConfigFile"
+    Write-Host ""
+
+    # 验证
+    Write-Host "==> 验证配置..."
+    Write-Host "  工作目录 : $workDir"
+    Write-Host "  AI 工具  : $aiTool"
+    Write-Host "  会话模式 : $sessionEnabled"
+    Write-Host "  日志级别 : $logLevel"
+    Write-Host ""
+
+    Write-Host "========================================"
+    Write-Host "配置完成！"
+    Write-Host ""
+    Write-Host "启动服务: .\feishu-receiver.ps1 start"
+    Write-Host "========================================"
+}
+
 function Start-Service {
     $config = Get-Config
 
@@ -79,12 +214,13 @@ function Start-Service {
     }
 
     Write-Host "==> 启动飞书消息接收服务..."
-    $logDir = Join-Path $BaseDir "logs"
+    $logDir = Join-Path $DataDir "logs"
     New-Item -ItemType Directory -Force $logDir | Out-Null
 
     $scriptPath = Join-Path $LibDir "feishu-receiver.py"
     $logFile = Join-Path $logDir "feishu-receiver.log"
 
+    $env:PYTHONPATH = $InstallDir
     $proc = Start-Process -FilePath $Python -ArgumentList $scriptPath `
         -WindowStyle Hidden `
         -RedirectStandardOutput $logFile `
@@ -154,6 +290,7 @@ function Start-Foreground {
     $config = Get-Config
     Write-Host "==> 前台启动飞书消息接收服务 (按 Ctrl+C 停止)..."
     Set-Location $config.WorkDir
+    $env:PYTHONPATH = $InstallDir
     & $Python (Join-Path $LibDir "feishu-receiver.py")
 }
 
@@ -167,15 +304,14 @@ function Invoke-Uninstall {
         Remove-Item $PidFile -ErrorAction SilentlyContinue
     }
 
-    # 删除文件
-    Write-Host "==> 清理文件..."
-    Remove-Item -Recurse -Force (Join-Path $BaseDir "lib") -ErrorAction SilentlyContinue
-    Remove-Item -Recurse -Force (Join-Path $BaseDir "logs") -ErrorAction SilentlyContinue
-    Remove-Item -Recurse -Force (Join-Path $BaseDir "bin") -ErrorAction SilentlyContinue
+    # 删除安装目录（代码）
+    Write-Host "==> 清理安装文件..."
+    Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue
 
     Write-Host ""
     Write-Host "卸载完成！"
-    Write-Host "配置文件保留在: $ConfigFile"
+    Write-Host "数据目录保留在: $DataDir"
+    Write-Host "如需完全删除，请手动执行: Remove-Item -Recurse -Force $DataDir"
 }
 
 # 主逻辑
@@ -185,7 +321,7 @@ switch ($Command) {
     "status"      { Get-Status }
     "restart"     { Restart-Service }
     "foreground"  { Start-Foreground }
-    "setup"       { Write-Host "请运行: feishu-receiver setup" }
+    "setup"       { Invoke-Setup }
     "uninstall"   { Invoke-Uninstall }
     "help"        { Show-Help }
     default       { Write-Host "未知命令: $Command"; Show-Help; exit 1 }

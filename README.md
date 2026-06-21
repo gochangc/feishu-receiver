@@ -1,11 +1,11 @@
 # Feishu Receiver
 
-通过飞书私聊消息调用 Claude Code 进行自动回复的服务。
+通过飞书私聊消息调用 AI 编程工具（Claude Code / Codex / OpenCode）进行自动回复的服务。
 
 ## 工作原理
 
 ```
-飞书用户 → 私聊机器人 → lark-cli 监听事件 → Python 调用 Claude Code → 自动回复
+飞书用户 → 私聊机器人 → lark-cli 监听事件 → Python 调用 AI 工具 → 自动回复
 ```
 
 ## 前置依赖
@@ -14,20 +14,39 @@
 |------|------|----------|
 | `python` (≥3.10) | 运行核心服务 | `winget install python` 或 [python.org](https://python.org) |
 | `lark-cli` (≥1.0.50) | 飞书事件监听与消息发送 | 见[飞书 CLI 文档](https://bytedance.larkoffice.com/wiki/ILuTww7Xcimb6GkhH0mcK2f4nS7) |
-| `claude` | Claude Code CLI | 见[Claude Code 文档](https://docs.anthropic.com/en/docs/claude-code) |
+| `claude` / `codex` / `opencode` | AI 编程工具（至少安装一个） | 见各工具官方文档 |
 | `curl` (仅 Linux) | 下载安装脚本 | 系统自带 |
-| Git Bash 或 WSL (仅 Windows) | 运行 bash 控制脚本 | `winget install Git.Git` |
 
-### 飞书应用准备
+### 飞书应用配置
 
-1. 在[飞书开放平台](https://open.feishu.cn/app)创建企业自建应用，获取 **App ID** 和 **App Secret**
-2. 开通权限：`im:message`（发送消息）、`im:message.p2p_msg:readonly`（读取私聊消息）
-3. 发布应用版本并在管理后台审批通过
-4. 在飞书搜索机器人名称并发起私聊（机器人需在会话中才能接收消息）
+在[飞书开放平台](https://open.feishu.cn/app)创建企业自建应用后，需要完成以下配置：
+
+#### 1. 开通应用权限
+
+| 权限 | 说明 |
+|------|------|
+| `im:message` | 发送消息（用于机器人回复） |
+| `im:message.p2p_msg:readonly` | 读取私聊消息（用于接收用户消息） |
+
+#### 2. 配置事件订阅
+
+进入「事件与回调」→「事件订阅」，添加以下事件：
+
+| 事件 | 说明 |
+|------|------|
+| `im.message.receive_v1` | 接收消息 v2.0（当用户发送消息时触发） |
+
+#### 3. 启用机器人能力
+
+进入「应用能力」→「机器人」，启用机器人能力。
+
+#### 4. 发布应用
+
+发布应用版本并在管理后台审批通过，然后在飞书搜索机器人名称发起私聊。
 
 ## 安装
 
-**Linux / macOS / Git Bash：**
+**Linux / macOS：**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.sh | bash
@@ -49,9 +68,15 @@ irm https://raw.githubusercontent.com/gochangc/feishu-receiver/main/install.ps1 
 feishu-receiver setup
 ```
 
-交互式向导会引导你完成飞书 App ID / Secret 配置、工作目录、机器人名称和超时设置。配置保存在 `~/.feishu-receiver/config`。
+交互式向导会引导你完成：
+- 飞书 App ID / Secret 配置
+- lark-cli 初始化
+- 默认 AI 工具选择（claude / codex / opencode）
+- 工作目录设置
+- 会话模式配置
+- 日志级别设置
 
-> 如果 lark-cli 检测到 Hermes Agent 环境，需先将飞书凭证写入 `%LOCALAPPDATA%\hermes\.env`（`FEISHU_APP_ID` / `FEISHU_APP_SECRET`），再运行 `lark-cli config bind`。
+配置保存在 `~/.feishu-receiver/config.json`。
 
 ### 命令
 
@@ -72,29 +97,65 @@ systemctl --user start feishu-receiver
 journalctl --user -u feishu-receiver -f
 ```
 
-## 配置优先级
+### 飞书内使用命令
 
-**环境变量 > 配置文件 > 默认值**
+在飞书私聊中发送以下命令：
 
-配置文件 `~/.feishu-receiver/config`：
+| 命令 | 说明 |
+|------|------|
+| `/switch <tool>` | 切换 AI 工具（如 `/switch codex`） |
+| `/clear` | 清除当前会话历史 |
+| `/status` | 查看当前使用的工具 |
+| `/help` | 显示帮助信息 |
 
-```ini
-FEISHU_RECEIVER_WORKDIR=/home/user/workspace
-FEISHU_RECEIVER_BOT_NAME=我的飞书机器人
-FEISHU_RECEIVER_CLAUDE_TIMEOUT=300
+直接发送消息即可调用 AI 工具回复。
+
+## 配置文件
+
+`~/.feishu-receiver/config.json`：
+
+```json
+{
+  "feishu": {
+    "app_id": "cli_xxxxxxxxxx",
+    "app_secret": "xxxxxxxxxx",
+    "bot_name": "我的飞书机器人"
+  },
+  "ai_tool": {
+    "default": "claude",
+    "timeout": 300
+  },
+  "session": {
+    "enabled": true,
+    "max_history": 50,
+    "timeout": 3600
+  },
+  "workdir": "/home/user/workspace",
+  "logging": {
+    "level": "INFO",
+    "file": "logs/feishu-receiver.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  }
+}
 ```
 
 ## 日志
 
 ```bash
 tail -f ~/.feishu-receiver/logs/feishu-receiver.log   # 服务日志
-ls ~/.feishu-receiver/logs/claude-debug-*.log         # Claude 调试日志
 ```
 
 ## 卸载
 
 ```bash
 feishu-receiver uninstall
+```
+
+配置文件和会话数据保留在 `~/.feishu-receiver/`，如需完全删除：
+
+```bash
+rm -rf ~/.feishu-receiver
 ```
 
 ## 常见问题
@@ -104,12 +165,11 @@ feishu-receiver uninstall
 - `feishu-receiver status` 检查服务是否运行
 - `lark-cli auth status` 检查飞书认证
 - 确认已开通 `im:message` 和 `im:message.p2p_msg:readonly` 权限
+- 确认已配置事件订阅 `im.message.receive_v1`
 
-**Claude Code 调用超时**
+**AI 工具调用超时**
 
-```bash
-FEISHU_RECEIVER_CLAUDE_TIMEOUT=600 feishu-receiver start
-```
+编辑 `~/.feishu-receiver/config.json`，修改 `ai_tool.timeout` 值（单位：秒）。
 
 **`feishu-receiver` 命令找不到（Windows）**
 

@@ -29,19 +29,20 @@ def detect_python() -> str:
 
 
 def resolve_command(args: list[str]) -> list[str]:
-    """Windows 上 npm 包装器需要 .cmd 后缀。
+    """Windows 上解析命令的完整路径。
 
-    逻辑：先检查命令本身是否可直接执行（如 python3 在 Windows 上可能是
-    Store 占位符），如果可直接执行则不加后缀；否则尝试加 .cmd。
+    Windows 的 subprocess 不能直接执行 .CMD/.BAT 文件（需要 shell=True），
+    因此需要用 shutil.which 找到完整路径后传给 subprocess。
     """
     if sys.platform == "win32":
         cmd = args[0]
-        # 已有后缀或命令本身可直接执行，无需修改
-        if cmd.endswith(".cmd") or cmd.endswith(".exe"):
+        # 已有后缀或绝对路径，直接返回
+        if cmd.endswith(".cmd") or cmd.endswith(".exe") or cmd.endswith(".CMD") or cmd.endswith(".BAT"):
             return args
-        if shutil.which(cmd):
-            return args
-        # npm 等 Node 包装器在 Windows 上需要 .cmd 后缀
+        full_path = shutil.which(cmd)
+        if full_path:
+            return [full_path] + args[1:]
+        # 找不到时尝试加 .cmd 后缀
         return [cmd + ".cmd"] + args[1:]
     return args
 

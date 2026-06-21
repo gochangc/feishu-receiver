@@ -43,8 +43,14 @@ class Logger:
         )
         self._logger.addHandler(file_handler)
 
-        # 控制台处理器：实时输出到终端
-        console_handler = logging.StreamHandler()
+        # 控制台处理器：实时输出到终端（Windows 需要指定 UTF-8 编码）
+        import sys
+        if sys.platform == "win32":
+            console_handler = logging.StreamHandler(
+                stream=open(sys.stderr.fileno(), mode="w", encoding="utf-8", buffering=1)
+            )
+        else:
+            console_handler = logging.StreamHandler()
         console_handler.setFormatter(
             logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
         )
