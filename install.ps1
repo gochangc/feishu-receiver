@@ -30,8 +30,35 @@ if ($larkStatus -match 'not configured') {
 }
 
 Write-Host '==> 下载文件...'
+
+# 覆盖安装前先停止正在运行的服务
+$PidFile = "$InstallDir\feishu-receiver.pid"
+if (Test-Path $PidFile) {
+    $svcPid = Get-Content $PidFile -ErrorAction SilentlyContinue
+    if ($svcPid) {
+        $proc = Get-Process -Id $svcPid -ErrorAction SilentlyContinue
+        if ($proc) {
+            Write-Host "  停止正在运行的服务 (PID: $svcPid)..."
+            Stop-Process -Id $svcPid -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+        }
+    }
+    Remove-Item $PidFile -ErrorAction SilentlyContinue
+}
+
+# 清理安装目录（保留 config.json 和 sessions.db）
 if (Test-Path $InstallDir) {
-    Remove-Item -Recurse -Force $InstallDir
+    # 先删除子目录（bin, lib, logs），再删除根目录下的旧文件
+    foreach ($subdir in @('bin', 'lib', 'logs')) {
+        $subdirPath = Join-Path $InstallDir $subdir
+        if (Test-Path $subdirPath) {
+            Remove-Item -Recurse -Force $subdirPath -ErrorAction SilentlyContinue
+        }
+    }
+    # 删除根目录下的旧文件（.bat, .pid 等），但保留 config.json 和 sessions.db
+    Get-ChildItem -Path $InstallDir -File | Where-Object {
+        $_.Name -notin @('config.json', 'sessions.db')
+    } | Remove-Item -Force -ErrorAction SilentlyContinue
 }
 New-Item -ItemType Directory -Force $InstallDir\bin, $InstallDir\lib\adapters, $InstallDir\lib\utils, $LogDir | Out-Null
 
