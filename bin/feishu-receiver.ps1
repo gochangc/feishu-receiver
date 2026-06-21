@@ -1,4 +1,4 @@
-# feishu-receiver.ps1
+﻿# feishu-receiver.ps1
 # 飞书消息接收服务 - Windows PowerShell 主控脚本
 # 用法: .\feishu-receiver.ps1 <命令>
 
@@ -61,7 +61,6 @@ function Show-Help {
   setup       交互式配置向导
   uninstall   卸载服务
   help        显示此帮助信息
-
 配置: $ConfigFile
 "@
 }
@@ -103,7 +102,7 @@ function Invoke-Setup {
     Write-Host "     - 添加事件: im.message.receive_v1 (接收消息)"
     Write-Host ""
     Write-Host "  3. 启用机器人能力:"
-    Write-Host "     - 进入「应用能力」->「机器人」-> 启用"
+    Write-Host "     - 进入 应用能力 > 机器人 > 启用"
     Write-Host ""
 
     $appId = Read-Host "  请输入 App ID"
@@ -200,14 +199,14 @@ function Invoke-Setup {
     Write-Host "========================================"
 }
 
-function Start-Service {
+function Start-FeishuService {
     $config = Get-Config
 
     if (Test-Path $PidFile) {
-        $pid = Get-Content $PidFile
-        $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+        $svcPid = Get-Content $PidFile
+        $proc = Get-Process -Id $svcPid -ErrorAction SilentlyContinue
         if ($proc) {
-            Write-Host "服务已在运行中 (PID: $pid)"
+            Write-Host "服务已在运行中 (PID: $svcPid)"
             return
         }
         Remove-Item $PidFile
@@ -241,23 +240,23 @@ function Start-Service {
     }
 }
 
-function Stop-Service {
+function Stop-FeishuService {
     if (-not (Test-Path $PidFile)) {
         Write-Host "服务未运行 (找不到 PID 文件)"
         return
     }
 
-    $pid = Get-Content $PidFile
-    $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+    $svcPid = Get-Content $PidFile
+    $proc = Get-Process -Id $svcPid -ErrorAction SilentlyContinue
 
     if (-not $proc) {
-        Write-Host "服务未运行 (PID: $pid 已不存在)"
+        Write-Host "服务未运行 (PID: $svcPid 已不存在)"
         Remove-Item $PidFile
         return
     }
 
-    Write-Host "==> 停止飞书消息接收服务 (PID: $pid)..."
-    Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    Write-Host "==> 停止飞书消息接收服务 (PID: $svcPid)..."
+    Stop-Process -Id $svcPid -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 
     Remove-Item $PidFile -ErrorAction SilentlyContinue
@@ -270,20 +269,20 @@ function Get-Status {
         return
     }
 
-    $pid = Get-Content $PidFile
-    $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+    $svcPid = Get-Content $PidFile
+    $proc = Get-Process -Id $svcPid -ErrorAction SilentlyContinue
 
     if ($proc) {
-        Write-Host "状态: 运行中 (PID: $pid)"
+        Write-Host "状态: 运行中 (PID: $svcPid)"
     } else {
-        Write-Host "状态: 未运行 (PID 文件残留: $pid)"
+        Write-Host "状态: 未运行 (PID 文件残留: $svcPid)"
     }
 }
 
-function Restart-Service {
-    Stop-Service
+function Restart-FeishuService {
+    Stop-FeishuService
     Start-Sleep -Seconds 1
-    Start-Service
+    Start-FeishuService
 }
 
 function Start-Foreground {
@@ -299,8 +298,8 @@ function Invoke-Uninstall {
 
     # 停止服务
     if (Test-Path $PidFile) {
-        $pid = Get-Content $PidFile
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+        $svcPid = Get-Content $PidFile
+        Stop-Process -Id $svcPid -Force -ErrorAction SilentlyContinue
         Remove-Item $PidFile -ErrorAction SilentlyContinue
     }
 
@@ -316,10 +315,10 @@ function Invoke-Uninstall {
 
 # 主逻辑
 switch ($Command) {
-    "start"       { Start-Service }
-    "stop"        { Stop-Service }
+    "start"       { Start-FeishuService }
+    "stop"        { Stop-FeishuService }
     "status"      { Get-Status }
-    "restart"     { Restart-Service }
+    "restart"     { Restart-FeishuService }
     "foreground"  { Start-Foreground }
     "setup"       { Invoke-Setup }
     "uninstall"   { Invoke-Uninstall }
