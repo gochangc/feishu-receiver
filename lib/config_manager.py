@@ -1,4 +1,5 @@
 """JSON 配置文件管理器"""
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -44,7 +45,7 @@ class ConfigManager:
             with open(self._path, "r", encoding="utf-8") as f:
                 self._config = json.load(f)
         else:
-            self._config = DEFAULT_CONFIG.copy()
+            self._config = copy.deepcopy(DEFAULT_CONFIG)
         return self._config
 
     def save(self) -> None:
