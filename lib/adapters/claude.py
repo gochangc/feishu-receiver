@@ -9,6 +9,11 @@ class ClaudeAdapter(AIToolAdapter):
     def __init__(self):
         super().__init__("claude", "claude")
 
+    @property
+    def use_stdin(self) -> bool:
+        """Claude Code 通过 stdin 接收 prompt"""
+        return True
+
     def build_args(self, prompt: str) -> list[str]:
         """构建 Claude Code CLI 参数"""
         return [

@@ -34,6 +34,11 @@ class AIToolAdapter(ABC):
         """获取需要清除的环境变量列表"""
         ...
 
+    @property
+    def use_stdin(self) -> bool:
+        """是否通过 stdin 传递 prompt（默认 False，子类可覆盖）"""
+        return False
+
     def execute(self, prompt: str, workdir: Path, timeout: int) -> str:
         """执行 AI 工具并返回结果"""
         args = self.build_args(prompt)
@@ -45,7 +50,7 @@ class AIToolAdapter(ABC):
 
         result = subprocess.run(
             resolve_command(args),
-            input=prompt,
+            input=prompt if self.use_stdin else None,
             capture_output=True,
             text=True,
             encoding="utf-8",
