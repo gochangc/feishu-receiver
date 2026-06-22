@@ -106,7 +106,7 @@ class CardBuilder:
         latest_round: int,
         active_round: int,
     ) -> dict:
-        """构建 /resume 会话管理卡片（支持轮次切换）
+        """构建 /resume 会话管理卡片（以轮次切换为主）
 
         Args:
             history: 当前会话最近消息
@@ -118,22 +118,32 @@ class CardBuilder:
         elements: list[dict[str, Any]] = []
         is_latest = active_round == 0 or active_round >= latest_round
 
-        # 当前活跃轮次信息
+        # 当前状态
         if is_latest:
-            round_label = f"第 {latest_round} 轮（最新）"
+            elements.append(cls._text(f"当前: 第 {latest_round} 轮（最新），{count} 条消息"))
         else:
-            round_label = f"第 {active_round} 轮（已切换）"
+            elements.append(cls._text(f"当前: 第 {active_round} 轮（已切换）"))
 
-        if history:
-            elements.append(cls._text(f"📜 当前会话 ({round_label}，共 {count} 条):"))
-            for msg in history[-5:]:
-                role = "👤" if msg["role"] == "user" else "🤖"
-                content = msg["content"][:80]
-                if len(msg["content"]) > 80:
-                    content += "..."
-                elements.append(cls._text(f"{role} {content}"))
+        # 轮次列表（核心内容）
+        if rounds:
+            elements.append(cls._hr())
+            buttons = []
+            for r in rounds[:8]:
+                marker = "▶ " if (r["round"] == active_round or (active_round == 0 and r["round"] == latest_round)) else ""
+                preview = r["summary"][:25] + ("..." if len(r["summary"]) > 25 else "")
+                is_active = r["round"] == active_round or (active_round == 0 and r["round"] == latest_round)
+                buttons.append(
+                    cls._button(
+                        f"{marker}第 {r['round']} 轮  {preview}",
+                        {"action": "switch_round", "round": r["round"]},
+                        btn_type="primary" if is_active else "default",
+                    )
+                )
+            for i in range(0, len(buttons), 2):
+                elements.append(cls._action_row(buttons[i:i + 2]))
         else:
-            elements.append(cls._text(f"📭 当前会话为空 ({round_label})"))
+            elements.append(cls._hr())
+            elements.append(cls._text("暂无历史会话"))
 
         # 非最新轮时显示返回按钮
         if not is_latest:
@@ -144,37 +154,15 @@ class CardBuilder:
                 ])
             )
 
-        # 历史轮次选项
-        if rounds:
-            elements.append(cls._hr())
-            elements.append(cls._text("📂 历史会话轮次:"))
-            buttons = []
-            for r in rounds[:5]:
-                marker = "▶ " if r["round"] == active_round else ""
-                preview = r["summary"][:25] + ("..." if len(r["summary"]) > 25 else "")
-                buttons.append(
-                    cls._button(
-                        f"{marker}第 {r['round']} 轮: {preview}",
-                        {"action": "switch_round", "round": r["round"]},
-                        btn_type="primary" if r["round"] == active_round else "default",
-                    )
-                )
-            for i in range(0, len(buttons), 3):
-                elements.append(cls._action_row(buttons[i:i + 3]))
-
-        # 操作按钮
+        # 底部操作
         elements.append(cls._hr())
         elements.append(
             cls._action_row([
-                cls._button(
-                    "🔄 清空并开始新会话",
-                    {"action": "resume_new_session"},
-                    btn_type="primary",
-                ),
+                cls._button("🔄 清空并开始新会话", {"action": "resume_new_session"}, btn_type="default"),
             ])
         )
 
-        return cls._card("💬 会话管理", "blue", elements)
+        return cls._card("💬 会话切换", "blue", elements)
 
     @classmethod
     def round_detail_card(cls, round_num: int, summary: str, updated_at: str) -> dict:
