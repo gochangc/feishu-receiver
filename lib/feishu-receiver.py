@@ -57,7 +57,7 @@ class FeishuReceiver:
             return False
 
     def reply_text(self, message_id: str, text: str) -> bool:
-        """回复飞书消息"""
+        """回复飞书文本消息"""
         if len(text) > 4000:
             text = text[:4000] + "...(内容截断)"
         try:
@@ -80,8 +80,13 @@ class FeishuReceiver:
         """处理消息（后台线程）"""
         try:
             self._logger.info(f"后台任务开始 message_id={message_id}")
-            self.reply_text(message_id, "⏳ 任务已接收，正在处理中...")
             bot_name = self._config.get("feishu.bot_name", "我的飞书机器人")
+
+            # 非命令消息先发"处理中"提示
+            message = self._processor.clean_message(content, bot_name)
+            if not message.startswith("/"):
+                self.reply_text(message_id, "⏳ 任务已接收，正在处理中...")
+
             response = self._processor.process(content, sender_id, bot_name)
             self.reply_text(message_id, response)
             self._logger.info(f"后台任务完成 message_id={message_id}")
@@ -99,11 +104,9 @@ class FeishuReceiver:
         if not message_id or not content:
             self._logger.warning(f"跳过无效事件: {event}")
             return
-
         self._logger.info(f"收到消息 sender={sender_id} message_id={message_id}")
         worker = threading.Thread(target=self.handle_message, args=(message_id, content, sender_id), daemon=True)
         worker.start()
-        self._logger.info(f"后台任务已启动 message_id={message_id} thread={worker.name}")
 
     def run(self) -> None:
         """运行服务"""
@@ -129,6 +132,9 @@ class FeishuReceiver:
 
         # 启动事件监听（循环重启，防止 lark-cli 意外退出）
         self._logger.info("开始监听飞书事件...")
+
+        import time
+
         while True:
             process = subprocess.Popen(
                 resolve_command(["lark-cli", "event", "consume", "im.message.receive_v1", "--as", "bot", "--quiet", "--timeout", "24h"]),
@@ -159,10 +165,8 @@ class FeishuReceiver:
             except Exception as e:
                 self._logger.error(f"事件监听异常: {e}")
 
-            # lark-cli 退出后等待 3 秒重启
             process.terminate()
             self._logger.warning("事件监听进程退出，3 秒后重启...")
-            import time
             time.sleep(3)
 
 

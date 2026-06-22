@@ -48,9 +48,11 @@ class MessageProcessor:
 /help        - 显示此帮助
 /new         - 开启新一轮会话
 /resume      - 查看最近会话记录
-/ai-tool     - 切换 AI 工具
+/ai-tool     - 查看/切换 AI 工具
 /status      - 查看当前状态
-/clear       - 清除会话历史"""
+/clear       - 清除会话历史
+
+💡 /ai-tool 和 /resume 支持快捷操作，直接输入 /ai-tool claude 即可切换"""
             return help_text, ""
 
         # /new - 开启新一轮会话（清除历史，保留总结）
@@ -61,28 +63,41 @@ class MessageProcessor:
         # /resume - 查看最近会话记录
         if cmd == "/resume":
             history = self._session.get_session(sender_id)
-            if not history:
-                return "📭 暂无会话记录", ""
-            lines = ["📜 最近会话记录:\n"]
-            for i, msg in enumerate(history[-10:], 1):
-                role = "👤 用户" if msg["role"] == "user" else "🤖 助手"
-                content = msg["content"][:100]
-                if len(msg["content"]) > 100:
-                    content += "..."
-                lines.append(f"{i}. {role}: {content}")
             count = self._session.count_messages(sender_id)
-            lines.append(f"\n共 {count} 条记录")
+            summary = self._session.get_summary(sender_id)
+
+            lines = []
+            if summary:
+                preview = summary[:200] + ("..." if len(summary) > 200 else "")
+                lines.append(f"📝 历史总结:\n{preview}\n")
+
+            if not history:
+                lines.append("📭 暂无会话记录")
+            else:
+                lines.append(f"📜 最近会话 (共 {count} 条):\n")
+                for i, msg in enumerate(history[-8:], 1):
+                    role = "👤" if msg["role"] == "user" else "🤖"
+                    content = msg["content"][:80]
+                    if len(msg["content"]) > 80:
+                        content += "..."
+                    lines.append(f"{i}. {role} {content}")
+
+            lines.append(f"\n💡 发送 /new 开启新会话，/clear 清除所有记录")
             return "\n".join(lines), ""
 
-        # /ai-tool - 切换 AI 工具
+        # /ai-tool - 查看/切换 AI 工具
         if cmd == "/ai-tool":
-            if not args:
-                tool_list = ", ".join(ADAPTERS.keys())
-                return f"🔧 当前工具: {self._current_tool}\n可用工具: {tool_list}\n用法: /ai-tool <工具名>", ""
-            if args in ADAPTERS:
+            if args and args in ADAPTERS:
                 self._current_tool = args
                 return f"✅ 已切换到 {args}", ""
-            return f"❌ 未知工具: {args}\n可用: {', '.join(ADAPTERS.keys())}", ""
+
+            lines = [f"🔧 当前工具: {self._current_tool}\n"]
+            lines.append("可用工具:")
+            for name in ADAPTERS:
+                marker = " 👈" if name == self._current_tool else ""
+                lines.append(f"  • {name}{marker}")
+            lines.append(f"\n💡 发送 /ai-tool <工具名> 切换，例如: /ai-tool claude")
+            return "\n".join(lines), ""
 
         # /switch - /ai-tool 的别名
         if cmd == "/switch":
