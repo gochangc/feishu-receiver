@@ -4,6 +4,9 @@
 
 $ErrorActionPreference = 'Stop'
 
+# 强制使用 TLS 1.2（GitHub 要求）
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 $InstallDir = "$env:USERPROFILE\.feishu-receiver"
 $LogDir = "$InstallDir\logs"
 $RawBase = 'https://raw.githubusercontent.com/gochangc/feishu-receiver/main'
@@ -82,7 +85,22 @@ $files = @(
 foreach ($file in $files) {
     $url = "$RawBase/$file"
     $outFile = Join-Path $InstallDir $file
-    Invoke-WebRequest -Uri $url -OutFile $outFile
+    $downloaded = $false
+    for ($retry = 1; $retry -le 3; $retry++) {
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $outFile
+            $downloaded = $true
+            break
+        } catch {
+            if ($retry -lt 3) {
+                Write-Host "  下载失败，重试 ($retry/3): $file" -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+            } else {
+                Write-Host "  错误: 下载失败 $file - $_" -ForegroundColor Red
+                exit 1
+            }
+        }
+    }
 }
 
 Write-Host '==> 创建命令入口...'
