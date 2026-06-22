@@ -46,6 +46,8 @@ class FeishuReceiver:
                 resolve_command(["lark-cli", "auth", "status"]),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
             combined = (result.stdout + result.stderr).lower()
@@ -67,6 +69,8 @@ class FeishuReceiver:
                 resolve_command(["lark-cli", "im", "+messages-reply", "--as", "bot", "--message-id", message_id, "--text", text]),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             if result.returncode == 0:
@@ -86,6 +90,8 @@ class FeishuReceiver:
                 resolve_command(["lark-cli", "im", "+messages-reply", "--as", "bot", "--message-id", message_id, "--card", card_json]),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             if result.returncode == 0:
