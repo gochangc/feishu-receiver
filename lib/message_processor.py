@@ -50,10 +50,11 @@ class MessageProcessor:
             card = CardBuilder.help_card()
             return None, "", card
 
-        # /new - 开启新一轮会话（清除历史，保留总结）
+        # /new - 开启新一轮会话（卡片）
         if cmd == "/new":
             self._session.clear_session(sender_id)
-            return "✅ 已开启新一轮会话", "", None
+            card = CardBuilder.new_session_card()
+            return None, "", card
 
         # /resume - 查看最近会话记录（卡片）
         if cmd == "/resume":
@@ -67,7 +68,8 @@ class MessageProcessor:
         if cmd == "/ai-tool":
             if args and args in ADAPTERS:
                 self._current_tool = args
-                return f"✅ 已切换到 {args}", "", None
+                card = CardBuilder.switch_tool_card(args)
+                return None, "", card
             card = CardBuilder.ai_tool_card(self._current_tool, list(ADAPTERS.keys()))
             return None, "", card
 
@@ -75,25 +77,23 @@ class MessageProcessor:
         if cmd == "/switch":
             if args and args in ADAPTERS:
                 self._current_tool = args
-                return f"✅ 已切换到 {args}", "", None
-            return f"❌ 未知工具: {args}，可用: {', '.join(ADAPTERS.keys())}", "", None
+                card = CardBuilder.switch_tool_card(args)
+                return None, "", card
+            card = CardBuilder.ai_tool_card(self._current_tool, list(ADAPTERS.keys()))
+            return None, "", card
 
-        # /clear - 清除会话历史
+        # /clear - 清除会话历史（卡片）
         if cmd == "/clear":
             self._session.clear_session(sender_id)
-            return "✅ 会话已清除", "", None
+            card = CardBuilder.clear_card()
+            return None, "", card
 
-        # /status - 查看当前状态
+        # /status - 查看当前状态（卡片）
         if cmd == "/status":
             count = self._session.count_messages(sender_id)
             summary = self._session.get_summary(sender_id)
-            lines = [
-                f"🔧 当前工具: {self._current_tool}",
-                f"💬 会话消息: {count} 条",
-            ]
-            if summary:
-                lines.append(f"📝 已有历史总结")
-            return "\n".join(lines), "", None
+            card = CardBuilder.status_card(self._current_tool, count, summary is not None)
+            return None, "", card
 
         return None, message, None
 

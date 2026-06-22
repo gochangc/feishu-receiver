@@ -99,16 +99,20 @@ journalctl --user -u feishu-receiver -f
 
 ### 飞书内使用命令
 
-在飞书私聊中发送以下命令：
+在飞书私聊中发送以下命令（所有命令均以卡片形式回复）：
 
 | 命令 | 说明 |
 |------|------|
-| `/switch <tool>` | 切换 AI 工具（如 `/switch codex`） |
-| `/clear` | 清除当前会话历史 |
-| `/status` | 查看当前使用的工具 |
-| `/help` | 显示帮助信息 |
+| `/help` | 显示可用命令列表 |
+| `/new` | 开启新一轮会话（保留历史总结） |
+| `/resume` | 查看最近会话记录，支持清空并开始新会话 |
+| `/ai-tool` | 查看/切换 AI 工具（claude / codex / opencode） |
+| `/ai-tool <工具名>` | 直接切换到指定工具，如 `/ai-tool codex` |
+| `/switch <工具名>` | `/ai-tool` 的别名 |
+| `/status` | 查看当前工具、会话消息数、是否有历史总结 |
+| `/clear` | 清除当前会话历史和总结 |
 
-直接发送消息即可调用 AI 工具回复。
+直接发送消息即可调用 AI 工具回复。回复前会先提示"任务已接收，正在处理"。
 
 ## 配置文件
 
@@ -128,7 +132,8 @@ journalctl --user -u feishu-receiver -f
   "session": {
     "enabled": true,
     "max_history": 50,
-    "timeout": 3600
+    "timeout": 3600,
+    "auto_summarize": true
   },
   "workdir": "/home/user/workspace",
   "logging": {

@@ -69,6 +69,35 @@ class CardBuilder:
         return cls._card("📖 可用命令", "indigo", elements)
 
     @classmethod
+    def new_session_card(cls) -> dict:
+        """构建 /new 新会话卡片"""
+        elements = [cls._text("✅ 已开启新一轮会话，历史总结已保留。")]
+        return cls._card("🔄 新会话", "green", elements)
+
+    @classmethod
+    def clear_card(cls) -> dict:
+        """构建 /clear 清除会话卡片"""
+        elements = [cls._text("✅ 会话已清除，所有历史记录和总结已删除。")]
+        return cls._card("🗑️ 清除会话", "orange", elements)
+
+    @classmethod
+    def switch_tool_card(cls, tool_name: str) -> dict:
+        """构建切换工具成功卡片"""
+        elements = [cls._text(f"✅ 已切换到 {tool_name}")]
+        return cls._card("🔧 切换工具", "purple", elements)
+
+    @classmethod
+    def status_card(cls, current_tool: str, count: int, has_summary: bool) -> dict:
+        """构建 /status 状态卡片"""
+        elements = [
+            cls._text(f"🔧 当前工具: {current_tool}"),
+            cls._text(f"💬 会话消息: {count} 条"),
+        ]
+        if has_summary:
+            elements.append(cls._text("📝 已有历史总结"))
+        return cls._card("📊 当前状态", "wathet", elements)
+
+    @classmethod
     def resume_card(
         cls,
         history: list[dict[str, str]],
