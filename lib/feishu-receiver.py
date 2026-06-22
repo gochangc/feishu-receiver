@@ -126,33 +126,43 @@ class FeishuReceiver:
         if not self.check_lark_config():
             sys.exit(1)
 
-        # 启动事件监听
-        process = subprocess.Popen(
-            resolve_command(["lark-cli", "event", "consume", "im.message.receive_v1", "--as", "bot", "--quiet"]),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
+        # 启动事件监听（循环重启，防止 lark-cli 意外退出）
+        self._logger.info("开始监听飞书事件...")
+        while True:
+            process = subprocess.Popen(
+                resolve_command(["lark-cli", "event", "consume", "im.message.receive_v1", "--as", "bot", "--quiet", "--timeout", "86400"]),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
 
-        try:
-            assert process.stdout is not None
-            for line in process.stdout:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    self.process_event(json.loads(line))
-                except json.JSONDecodeError:
-                    self._logger.warning(f"忽略非 JSON 输出: {line[:200]}")
-                except Exception as e:
-                    self._logger.error(f"处理事件异常: {e}")
-        except KeyboardInterrupt:
-            self._logger.info("服务已停止")
-        finally:
+            try:
+                assert process.stdout is not None
+                for line in process.stdout:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        self.process_event(json.loads(line))
+                    except json.JSONDecodeError:
+                        self._logger.warning(f"忽略非 JSON 输出: {line[:200]}")
+                    except Exception as e:
+                        self._logger.error(f"处理事件异常: {e}")
+            except KeyboardInterrupt:
+                self._logger.info("服务已停止")
+                process.terminate()
+                return
+            except Exception as e:
+                self._logger.error(f"事件监听异常: {e}")
+
+            # lark-cli 退出后等待 3 秒重启
             process.terminate()
+            self._logger.warning("事件监听进程退出，3 秒后重启...")
+            import time
+            time.sleep(3)
 
 
 def main():
