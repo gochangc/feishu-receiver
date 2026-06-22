@@ -102,34 +102,47 @@ class CardBuilder:
         cls,
         history: list[dict[str, str]],
         count: int,
-        summary: str | None,
+        rounds: list[dict],
+        current_round: int,
     ) -> dict:
-        """构建 /resume 会话管理卡片
+        """构建 /resume 会话管理卡片（支持轮次切换）
 
         Args:
-            history: 最近会话列表 [{"role": ..., "content": ...}, ...]
-            count: 总消息数
-            summary: 历史总结文本（可能为 None）
+            history: 当前会话最近消息
+            count: 当前会话消息数
+            rounds: 所有轮次总结 [{"round": 1, "summary": "...", "updated_at": "..."}]
+            current_round: 当前轮次编号
         """
         elements: list[dict[str, Any]] = []
 
-        # 历史总结
-        if summary:
-            preview = summary[:200] + ("..." if len(summary) > 200 else "")
-            elements.append(cls._text(f"📝 历史总结:\n{preview}"))
-            elements.append(cls._hr())
-
-        # 会话记录
-        if not history:
-            elements.append(cls._text("📭 暂无会话记录"))
-        else:
-            elements.append(cls._text(f"📜 最近会话 (共 {count} 条):"))
+        # 当前会话
+        if history:
+            elements.append(cls._text(f"📜 当前会话 (第 {current_round} 轮，共 {count} 条):"))
             for msg in history[-5:]:
                 role = "👤" if msg["role"] == "user" else "🤖"
                 content = msg["content"][:80]
                 if len(msg["content"]) > 80:
                     content += "..."
                 elements.append(cls._text(f"{role} {content}"))
+        else:
+            elements.append(cls._text(f"📭 当前会话为空 (第 {current_round} 轮)"))
+
+        # 历史轮次选项
+        if rounds:
+            elements.append(cls._hr())
+            elements.append(cls._text("📂 历史会话轮次:"))
+            buttons = []
+            for r in rounds[:5]:  # 最多显示 5 个轮次
+                preview = r["summary"][:30] + ("..." if len(r["summary"]) > 30 else "")
+                buttons.append(
+                    cls._button(
+                        f"第 {r['round']} 轮: {preview}",
+                        {"action": "switch_round", "round": r["round"]},
+                    )
+                )
+            # 飞书卡片 action 每行最多放按钮，分批放入
+            for i in range(0, len(buttons), 3):
+                elements.append(cls._action_row(buttons[i:i + 3]))
 
         # 操作按钮
         elements.append(cls._hr())
@@ -144,6 +157,21 @@ class CardBuilder:
         )
 
         return cls._card("💬 会话管理", "blue", elements)
+
+    @classmethod
+    def round_detail_card(cls, round_num: int, summary: str, updated_at: str) -> dict:
+        """构建轮次详情卡片（点击轮次按钮后显示）"""
+        elements = [
+            cls._text(f"📅 更新时间: {updated_at}"),
+            cls._hr(),
+            cls._text(summary),
+            cls._hr(),
+            cls._action_row([
+                cls._button("📋 查看完整总结", {"action": "view_round", "round": round_num}, btn_type="default"),
+                cls._button("🔄 切换到此轮", {"action": "load_round", "round": round_num}, btn_type="primary"),
+            ]),
+        ]
+        return cls._card(f"📂 第 {round_num} 轮会话", "blue", elements)
 
     @classmethod
     def ai_tool_card(cls, current_tool: str, tools: list[str]) -> dict:

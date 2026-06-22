@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""SQLite 会话管理器，支持多轮对话和自动总结"""
+"""SQLite 会话管理器，支持多轮对话、多轮总结和自动总结"""
 import logging
 import sqlite3
 from datetime import datetime, timedelta
@@ -27,6 +27,7 @@ class SessionManager:
         """初始化数据库表"""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(str(self._db_path)) as conn:
+            # 当前会话消息表
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,18 +39,48 @@ class SessionManager:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at)")
-            # 会话总结表，存储每个用户的历史总结
+            # 多轮总结表，每轮独立存储
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS summaries (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL UNIQUE,
+                    user_id TEXT NOT NULL,
+                    round INTEGER NOT NULL,
                     summary TEXT NOT NULL,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_summaries_user_id ON summaries(user_id)")
+            # 兼容旧表：如果 summaries 有 UNIQUE(user_id) 约束，迁移到新结构
+            self._migrate_summaries_table(conn)
+
+    def _migrate_summaries_table(self, conn: sqlite3.Connection) -> None:
+        """迁移旧的 summaries 表结构（去除 UNIQUE 约束，添加 round 列）"""
+        try:
+            # 检查是否有 round 列
+            columns = [row[1] for row in conn.execute("PRAGMA table_info(summaries)").fetchall()]
+            if "round" in columns:
+                return  # 已迁移
+            # 旧表需要重建：SQLite 不支持 ALTER TABLE DROP CONSTRAINT
+            conn.execute("ALTER TABLE summaries RENAME TO summaries_old")
+            conn.execute("""
+                CREATE TABLE summaries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    round INTEGER NOT NULL,
+                    summary TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            # 迁移旧数据，round 默认为 1
+            conn.execute("INSERT INTO summaries (user_id, round, summary, updated_at) SELECT user_id, 1, summary, updated_at FROM summaries_old")
+            conn.execute("DROP TABLE summaries_old")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_summaries_user_id ON summaries(user_id)")
+            logger.info("summaries 表已迁移到多轮结构")
+        except Exception as e:
+            logger.warning(f"summaries 表迁移检查: {e}")
 
     def get_session(self, user_id: str) -> list[dict[str, str]]:
-        """获取用户会话历史"""
+        """获取用户当前会话历史"""
         self.cleanup_expired()
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.row_factory = sqlite3.Row
@@ -60,7 +91,7 @@ class SessionManager:
         return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
 
     def add_message(self, user_id: str, role: str, content: str) -> None:
-        """添加消息到会话历史"""
+        """添加消息到当前会话"""
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.execute(
                 "INSERT INTO sessions (user_id, role, content) VALUES (?, ?, ?)",
@@ -68,7 +99,7 @@ class SessionManager:
             )
 
     def clear_session(self, user_id: str) -> None:
-        """清除用户会话历史（包括总结）"""
+        """清除用户当前会话和所有总结"""
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
             conn.execute("DELETE FROM summaries WHERE user_id = ?", (user_id,))
@@ -98,21 +129,45 @@ class SessionManager:
             ).fetchall()
         return [{"role": row["role"], "content": row["content"]} for row in reversed(rows)]
 
-    def get_summary(self, user_id: str) -> str | None:
-        """获取用户的历史总结"""
+    # ------------------------------------------------------------------ #
+    #  多轮总结管理
+    # ------------------------------------------------------------------ #
+
+    def get_current_round(self, user_id: str) -> int:
+        """获取用户当前轮次（最大 round + 1）"""
         with sqlite3.connect(str(self._db_path)) as conn:
             row = conn.execute(
-                "SELECT summary FROM summaries WHERE user_id = ?", (user_id,)
+                "SELECT MAX(round) FROM summaries WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return (row[0] or 0) + 1
+
+    def get_summary(self, user_id: str) -> str | None:
+        """获取用户最新一轮的总结"""
+        with sqlite3.connect(str(self._db_path)) as conn:
+            row = conn.execute(
+                "SELECT summary FROM summaries WHERE user_id = ? ORDER BY round DESC LIMIT 1",
+                (user_id,),
             ).fetchone()
             return row[0] if row else None
 
-    def save_summary(self, user_id: str, summary: str) -> None:
-        """保存或更新用户总结"""
+    def get_round_summaries(self, user_id: str) -> list[dict]:
+        """获取用户所有轮次的总结列表，按轮次倒序"""
+        with sqlite3.connect(str(self._db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT round, summary, updated_at FROM summaries WHERE user_id = ? ORDER BY round DESC",
+                (user_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def save_summary(self, user_id: str, summary: str, round_num: int | None = None) -> None:
+        """保存指定轮次的总结"""
+        if round_num is None:
+            round_num = self.get_current_round(user_id)
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.execute(
-                "INSERT INTO summaries (user_id, summary, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
-                "ON CONFLICT(user_id) DO UPDATE SET summary = ?, updated_at = CURRENT_TIMESTAMP",
-                (user_id, summary, summary),
+                "INSERT INTO summaries (user_id, round, summary, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                (user_id, round_num, summary),
             )
 
     def _filter_messages_for_summary(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -140,9 +195,8 @@ class SessionManager:
         1. 获取最近的会话消息
         2. 过滤工具调用上下文
         3. 调用 AI 工具生成总结
-        4. 保存总结到 summaries 表
+        4. 保存总结到 summaries 表（新轮次）
         5. 清除旧的会话消息
-        6. 以总结作为新会话的起点
 
         返回总结文本，失败时返回 None。
         """
@@ -156,8 +210,11 @@ class SessionManager:
         if not filtered:
             return None
 
-        # 获取已有的历史总结（如果有）
+        # 获取已有的最新总结
         prev_summary = self.get_summary(user_id)
+
+        # 确定本轮轮次
+        current_round = self.get_current_round(user_id)
 
         # 构建总结请求
         prompt_parts = ["请简洁地总结以下对话内容，保留关键信息和上下文，以便在新对话中继续："]
@@ -177,12 +234,12 @@ class SessionManager:
                 logger.warning("AI 工具返回空总结，跳过")
                 return None
 
-            # 保存总结
-            self.save_summary(user_id, summary)
-            # 清除旧的会话消息
+            # 保存总结到当前轮次
+            self.save_summary(user_id, summary, current_round)
+            # 清除当前会话消息
             with sqlite3.connect(str(self._db_path)) as conn:
                 conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
-            logger.info(f"会话已自动总结并重置 user_id={user_id}")
+            logger.info(f"会话已自动总结并重置 user_id={user_id} round={current_round}")
             return summary
 
         except Exception as e:

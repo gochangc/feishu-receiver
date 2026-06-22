@@ -16,6 +16,7 @@ import logging
 from typing import Any
 
 from lib.adapters import ADAPTERS
+from lib.card_builder import CardBuilder
 from lib.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -35,13 +36,16 @@ class CardActionHandler:
         self._handlers: dict[str, callable] = {
             "switch_tool": self._handle_switch_tool,
             "resume_new_session": self._handle_resume_new_session,
+            "switch_round": self._handle_switch_round,
+            "view_round": self._handle_view_round,
+            "load_round": self._handle_load_round,
         }
 
     def set_current_tool(self, tool: str) -> None:
         """同步当前工具名称（由 MessageProcessor 调用）"""
         self._current_tool = tool
 
-    def handle(self, action_value: dict[str, Any], sender_id: str) -> str:
+    def handle(self, action_value: dict[str, Any], sender_id: str) -> dict | str:
         """处理卡片回调
 
         Args:
@@ -49,7 +53,7 @@ class CardActionHandler:
             sender_id: 触发回调的用户 open_id
 
         Returns:
-            处理结果文本
+            处理结果（卡片 dict 或文本 str）
         """
         action = action_value.get("action", "")
         handler = self._handlers.get(action)
@@ -76,3 +80,31 @@ class CardActionHandler:
         self._session.clear_session(sender_id)
         logger.info(f"卡片回调清空会话 sender={sender_id}")
         return "✅ 已清空会话，开始新一轮"
+
+    def _handle_switch_round(self, value: dict, sender_id: str) -> dict:
+        """查看指定轮次的详情卡片"""
+        round_num = value.get("round", 0)
+        rounds = self._session.get_round_summaries(sender_id)
+        for r in rounds:
+            if r["round"] == round_num:
+                return CardBuilder.round_detail_card(r["round"], r["summary"], r["updated_at"])
+        return f"❌ 未找到第 {round_num} 轮会话"
+
+    def _handle_view_round(self, value: dict, sender_id: str) -> dict | str:
+        """查看指定轮次的完整总结"""
+        round_num = value.get("round", 0)
+        rounds = self._session.get_round_summaries(sender_id)
+        for r in rounds:
+            if r["round"] == round_num:
+                return CardBuilder.round_detail_card(r["round"], r["summary"], r["updated_at"])
+        return f"❌ 未找到第 {round_num} 轮会话"
+
+    def _handle_load_round(self, value: dict, sender_id: str) -> str:
+        """将指定轮次的总结加载为当前上下文（不清除当前会话）"""
+        round_num = value.get("round", 0)
+        rounds = self._session.get_round_summaries(sender_id)
+        for r in rounds:
+            if r["round"] == round_num:
+                logger.info(f"卡片回调加载第 {round_num} 轮总结 sender={sender_id}")
+                return f"✅ 已加载第 {round_num} 轮会话总结作为上下文"
+        return f"❌ 未找到第 {round_num} 轮会话"

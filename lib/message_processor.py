@@ -56,12 +56,13 @@ class MessageProcessor:
             card = CardBuilder.new_session_card()
             return None, "", card
 
-        # /resume - 查看最近会话记录（卡片）
+        # /resume - 查看最近会话记录（卡片，支持轮次切换）
         if cmd == "/resume":
             history = self._session.get_session(sender_id)
             count = self._session.count_messages(sender_id)
-            summary = self._session.get_summary(sender_id)
-            card = CardBuilder.resume_card(history, count, summary)
+            rounds = self._session.get_round_summaries(sender_id)
+            current_round = self._session.get_current_round(sender_id)
+            card = CardBuilder.resume_card(history, count, rounds, current_round)
             return None, "", card
 
         # /ai-tool - 查看/切换 AI 工具（卡片）
