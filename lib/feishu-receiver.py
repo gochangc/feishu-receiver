@@ -61,12 +61,12 @@ class FeishuReceiver:
             return False
 
     def reply_text(self, message_id: str, text: str) -> bool:
-        """回复飞书文本消息"""
+        """回复飞书文本消息（使用 markdown 格式以支持多行和富文本）"""
         if len(text) > 4000:
             text = text[:4000] + "...(内容截断)"
         try:
             result = subprocess.run(
-                resolve_command(["lark-cli", "im", "+messages-reply", "--as", "bot", "--message-id", message_id, "--text", text]),
+                resolve_command(["lark-cli", "im", "+messages-reply", "--as", "bot", "--message-id", message_id, "--markdown", text]),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -83,25 +83,26 @@ class FeishuReceiver:
             return False
 
     def reply_card(self, message_id: str, card: dict) -> bool:
-        """回复飞书卡片消息（架构预留，待 lark-cli 支持或接入 HTTP 端点后启用）"""
+        """回复飞书卡片消息"""
         try:
             card_json = json.dumps(card, ensure_ascii=False)
+            self._logger.info(f"发送卡片回复 message_id={message_id}")
             result = subprocess.run(
-                resolve_command(["lark-cli", "im", "+messages-reply", "--as", "bot", "--message-id", message_id, "--card", card_json]),
+                resolve_command(["lark-cli", "im", "+messages-reply", "--as", "bot", "--message-id", message_id, "--msg-type", "interactive", "--content", card_json]),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
             )
+            self._logger.info(f"卡片回复 exit={result.returncode} stdout={result.stdout[:200]} stderr={result.stderr[:200]}")
             if result.returncode == 0:
                 self._logger.info(f"卡片回复发送成功: {message_id}")
                 return True
-            # 卡片发送失败时降级为文本提示
-            self._logger.warning(f"卡片回复发送失败，降级为文本: {result.stderr[:300]}")
+            self._logger.warning(f"卡片回复发送失败: {result.stderr[:300]}")
             return False
         except Exception as e:
-            self._logger.warning(f"卡片回复发送异常，降级为文本: {e}")
+            self._logger.warning(f"卡片回复发送异常: {e}")
             return False
 
     def handle_message(self, message_id: str, content: str, sender_id: str) -> None:

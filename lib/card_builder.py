@@ -54,6 +54,21 @@ class CardBuilder:
     # ------------------------------------------------------------------ #
 
     @classmethod
+    def help_card(cls) -> dict:
+        """构建 /help 帮助卡片"""
+        elements = [
+            cls._text("/help        - 显示此帮助"),
+            cls._text("/new         - 开启新一轮会话"),
+            cls._text("/resume      - 查看最近会话记录"),
+            cls._text("/ai-tool     - 查看/切换 AI 工具"),
+            cls._text("/status      - 查看当前状态"),
+            cls._text("/clear       - 清除会话历史"),
+            cls._hr(),
+            cls._text("/ai-tool 和 /resume 支持快捷操作，直接输入 /ai-tool claude 即可切换"),
+        ]
+        return cls._card("📖 可用命令", "indigo", elements)
+
+    @classmethod
     def resume_card(
         cls,
         history: list[dict[str, str]],

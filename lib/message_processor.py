@@ -45,19 +45,10 @@ class MessageProcessor:
         cmd = parts[0].lower()
         args = parts[1].strip() if len(parts) > 1 else ""
 
-        # /help - 显示帮助
+        # /help - 显示帮助（卡片）
         if cmd == "/help":
-            help_text = """📖 可用命令:
-
-/help        - 显示此帮助
-/new         - 开启新一轮会话
-/resume      - 查看最近会话记录
-/ai-tool     - 查看/切换 AI 工具
-/status      - 查看当前状态
-/clear       - 清除会话历史
-
-💡 /ai-tool 和 /resume 支持快捷操作，直接输入 /ai-tool claude 即可切换"""
-            return help_text, "", None
+            card = CardBuilder.help_card()
+            return None, "", card
 
         # /new - 开启新一轮会话（清除历史，保留总结）
         if cmd == "/new":
