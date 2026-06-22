@@ -50,6 +50,13 @@ class SessionManager:
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_summaries_user_id ON summaries(user_id)")
+            # 用户状态表（跟踪当前活跃轮次）
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_state (
+                    user_id TEXT PRIMARY KEY,
+                    active_round INTEGER NOT NULL DEFAULT 0
+                )
+            """)
             # 兼容旧表：如果 summaries 有 UNIQUE(user_id) 约束，迁移到新结构
             self._migrate_summaries_table(conn)
 
@@ -99,10 +106,11 @@ class SessionManager:
             )
 
     def clear_session(self, user_id: str) -> None:
-        """清除用户当前会话和所有总结"""
+        """清除用户当前会话、所有总结和状态"""
         with sqlite3.connect(str(self._db_path)) as conn:
             conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
             conn.execute("DELETE FROM summaries WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM user_state WHERE user_id = ?", (user_id,))
 
     def cleanup_expired(self) -> None:
         """清理过期会话"""
@@ -134,12 +142,45 @@ class SessionManager:
     # ------------------------------------------------------------------ #
 
     def get_current_round(self, user_id: str) -> int:
-        """获取用户当前轮次（最大 round + 1）"""
+        """获取用户最新轮次编号（最大 round + 1）"""
         with sqlite3.connect(str(self._db_path)) as conn:
             row = conn.execute(
                 "SELECT MAX(round) FROM summaries WHERE user_id = ?", (user_id,)
             ).fetchone()
             return (row[0] or 0) + 1
+
+    def get_active_round(self, user_id: str) -> int:
+        """获取用户当前活跃的轮次（0 表示最新轮）"""
+        with sqlite3.connect(str(self._db_path)) as conn:
+            row = conn.execute(
+                "SELECT active_round FROM user_state WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return row[0] if row else 0
+
+    def set_active_round(self, user_id: str, round_num: int) -> None:
+        """设置用户活跃轮次（0 = 最新一轮）"""
+        with sqlite3.connect(str(self._db_path)) as conn:
+            conn.execute(
+                "INSERT INTO user_state (user_id, active_round) VALUES (?, ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET active_round = ?",
+                (user_id, round_num, round_num),
+            )
+
+    def get_active_summary(self, user_id: str) -> str | None:
+        """获取用户当前活跃轮次的总结（active_round=0 时返回最新总结）"""
+        active = self.get_active_round(user_id)
+        with sqlite3.connect(str(self._db_path)) as conn:
+            if active == 0:
+                row = conn.execute(
+                    "SELECT summary FROM summaries WHERE user_id = ? ORDER BY round DESC LIMIT 1",
+                    (user_id,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT summary FROM summaries WHERE user_id = ? AND round = ?",
+                    (user_id, active),
+                ).fetchone()
+            return row[0] if row else None
 
     def get_summary(self, user_id: str) -> str | None:
         """获取用户最新一轮的总结"""

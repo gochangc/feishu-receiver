@@ -61,8 +61,9 @@ class MessageProcessor:
             history = self._session.get_session(sender_id)
             count = self._session.count_messages(sender_id)
             rounds = self._session.get_round_summaries(sender_id)
-            current_round = self._session.get_current_round(sender_id)
-            card = CardBuilder.resume_card(history, count, rounds, current_round)
+            latest_round = self._session.get_current_round(sender_id)
+            active_round = self._session.get_active_round(sender_id)
+            card = CardBuilder.resume_card(history, count, rounds, latest_round, active_round)
             return None, "", card
 
         # /ai-tool - 查看/切换 AI 工具（卡片）
@@ -167,8 +168,8 @@ class MessageProcessor:
             "",
         ]
 
-        # 加入历史总结（如果有）
-        summary = self._session.get_summary(sender_id)
+        # 加入活跃轮次的总结（如果有）
+        summary = self._session.get_active_summary(sender_id)
         if summary:
             parts.append(f"历史总结：\n{summary}")
 

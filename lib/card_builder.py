@@ -103,7 +103,8 @@ class CardBuilder:
         history: list[dict[str, str]],
         count: int,
         rounds: list[dict],
-        current_round: int,
+        latest_round: int,
+        active_round: int,
     ) -> dict:
         """构建 /resume 会话管理卡片（支持轮次切换）
 
@@ -111,13 +112,20 @@ class CardBuilder:
             history: 当前会话最近消息
             count: 当前会话消息数
             rounds: 所有轮次总结 [{"round": 1, "summary": "...", "updated_at": "..."}]
-            current_round: 当前轮次编号
+            latest_round: 最新轮次编号
+            active_round: 当前活跃轮次（0=最新轮）
         """
         elements: list[dict[str, Any]] = []
+        is_latest = active_round == 0 or active_round >= latest_round
 
-        # 当前会话
+        # 当前活跃轮次信息
+        if is_latest:
+            round_label = f"第 {latest_round} 轮（最新）"
+        else:
+            round_label = f"第 {active_round} 轮（已切换）"
+
         if history:
-            elements.append(cls._text(f"📜 当前会话 (第 {current_round} 轮，共 {count} 条):"))
+            elements.append(cls._text(f"📜 当前会话 ({round_label}，共 {count} 条):"))
             for msg in history[-5:]:
                 role = "👤" if msg["role"] == "user" else "🤖"
                 content = msg["content"][:80]
@@ -125,22 +133,32 @@ class CardBuilder:
                     content += "..."
                 elements.append(cls._text(f"{role} {content}"))
         else:
-            elements.append(cls._text(f"📭 当前会话为空 (第 {current_round} 轮)"))
+            elements.append(cls._text(f"📭 当前会话为空 ({round_label})"))
+
+        # 非最新轮时显示返回按钮
+        if not is_latest:
+            elements.append(cls._hr())
+            elements.append(
+                cls._action_row([
+                    cls._button("↩️ 返回最新会话", {"action": "switch_round", "round": 0}, btn_type="primary"),
+                ])
+            )
 
         # 历史轮次选项
         if rounds:
             elements.append(cls._hr())
             elements.append(cls._text("📂 历史会话轮次:"))
             buttons = []
-            for r in rounds[:5]:  # 最多显示 5 个轮次
-                preview = r["summary"][:30] + ("..." if len(r["summary"]) > 30 else "")
+            for r in rounds[:5]:
+                marker = "▶ " if r["round"] == active_round else ""
+                preview = r["summary"][:25] + ("..." if len(r["summary"]) > 25 else "")
                 buttons.append(
                     cls._button(
-                        f"第 {r['round']} 轮: {preview}",
+                        f"{marker}第 {r['round']} 轮: {preview}",
                         {"action": "switch_round", "round": r["round"]},
+                        btn_type="primary" if r["round"] == active_round else "default",
                     )
                 )
-            # 飞书卡片 action 每行最多放按钮，分批放入
             for i in range(0, len(buttons), 3):
                 elements.append(cls._action_row(buttons[i:i + 3]))
 
