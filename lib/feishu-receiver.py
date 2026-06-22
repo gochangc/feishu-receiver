@@ -80,6 +80,7 @@ class FeishuReceiver:
         """处理消息（后台线程）"""
         try:
             self._logger.info(f"后台任务开始 message_id={message_id}")
+            self.reply_text(message_id, "⏳ 任务已接收，正在处理中...")
             bot_name = self._config.get("feishu.bot_name", "我的飞书机器人")
             response = self._processor.process(content, sender_id, bot_name)
             self.reply_text(message_id, response)
