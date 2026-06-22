@@ -78,6 +78,8 @@ $files = @(
     "lib/adapters/claude.py",
     "lib/adapters/codex.py",
     "lib/adapters/opencode.py",
+    "lib/card_builder.py",
+    "lib/card_action_handler.py",
     "lib/utils/__init__.py",
     "lib/utils/command.py"
 )
