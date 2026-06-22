@@ -1,6 +1,6 @@
 ﻿# feishu-receiver.ps1
 # 飞书消息接收服务 - Windows PowerShell 主控脚本
-# 用法: .\feishu-receiver.ps1 <命令>
+# 用法: feishu-receiver <命令>
 
 param(
     [Parameter(Position=0)]
@@ -63,7 +63,7 @@ function Show-Help {
     Write-Host @"
 飞书消息接收服务 - PowerShell 主控脚本
 
-用法: .\feishu-receiver.ps1 <命令>
+用法: feishu-receiver <命令>
 
 命令:
   start       后台启动服务
@@ -253,7 +253,18 @@ function Start-FeishuService {
         Write-Host "服务已启动 (PID: $($proc.Id))"
         Write-Host "日志: Get-Content $logFile -Wait"
     } else {
-        Write-Host "服务启动失败，请查看日志" -ForegroundColor Red
+        Write-Host "服务启动失败" -ForegroundColor Red
+        # 读取错误日志，显示具体原因
+        $errorLog = Join-Path $logDir "feishu-receiver-error.log"
+        if (Test-Path $errorLog) {
+            $lastLines = Get-Content $errorLog -Tail 10 -ErrorAction SilentlyContinue
+            if ($lastLines) {
+                Write-Host ""
+                Write-Host "--- 错误日志 ---" -ForegroundColor Yellow
+                $lastLines | ForEach-Object { Write-Host $_ }
+                Write-Host "--- 日志文件: $errorLog ---" -ForegroundColor Yellow
+            }
+        }
         Remove-Item $PidFile -ErrorAction SilentlyContinue
         exit 1
     }
