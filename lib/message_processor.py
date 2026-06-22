@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from lib.adapters import ADAPTERS, AIToolAdapter
+from lib.card_builder import CardBuilder
 from lib.config_manager import ConfigManager
 from lib.session_manager import SessionManager
 
@@ -32,10 +33,13 @@ class MessageProcessor:
                 text = text[len(prefix):].strip()
         return text or content.strip()
 
-    def process_command(self, message: str, sender_id: str) -> tuple[str | None, str]:
-        """处理命令，返回 (命令结果, 剩余消息)"""
+    def process_command(self, message: str, sender_id: str) -> tuple[str | None, str, dict | None]:
+        """处理命令，返回 (命令结果, 剩余消息, 卡片数据)
+
+        卡片数据不为 None 时优先使用卡片回复。
+        """
         if not message.startswith("/"):
-            return None, message
+            return None, message, None
 
         parts = message.split(maxsplit=1)
         cmd = parts[0].lower()
@@ -53,63 +57,40 @@ class MessageProcessor:
 /clear       - 清除会话历史
 
 💡 /ai-tool 和 /resume 支持快捷操作，直接输入 /ai-tool claude 即可切换"""
-            return help_text, ""
+            return help_text, "", None
 
         # /new - 开启新一轮会话（清除历史，保留总结）
         if cmd == "/new":
             self._session.clear_session(sender_id)
-            return "✅ 已开启新一轮会话", ""
+            return "✅ 已开启新一轮会话", "", None
 
-        # /resume - 查看最近会话记录
+        # /resume - 查看最近会话记录（卡片）
         if cmd == "/resume":
             history = self._session.get_session(sender_id)
             count = self._session.count_messages(sender_id)
             summary = self._session.get_summary(sender_id)
+            card = CardBuilder.resume_card(history, count, summary)
+            return None, "", card
 
-            lines = []
-            if summary:
-                preview = summary[:200] + ("..." if len(summary) > 200 else "")
-                lines.append(f"📝 历史总结:\n{preview}\n")
-
-            if not history:
-                lines.append("📭 暂无会话记录")
-            else:
-                lines.append(f"📜 最近会话 (共 {count} 条):\n")
-                for i, msg in enumerate(history[-8:], 1):
-                    role = "👤" if msg["role"] == "user" else "🤖"
-                    content = msg["content"][:80]
-                    if len(msg["content"]) > 80:
-                        content += "..."
-                    lines.append(f"{i}. {role} {content}")
-
-            lines.append(f"\n💡 发送 /new 开启新会话，/clear 清除所有记录")
-            return "\n".join(lines), ""
-
-        # /ai-tool - 查看/切换 AI 工具
+        # /ai-tool - 查看/切换 AI 工具（卡片）
         if cmd == "/ai-tool":
             if args and args in ADAPTERS:
                 self._current_tool = args
-                return f"✅ 已切换到 {args}", ""
-
-            lines = [f"🔧 当前工具: {self._current_tool}\n"]
-            lines.append("可用工具:")
-            for name in ADAPTERS:
-                marker = " 👈" if name == self._current_tool else ""
-                lines.append(f"  • {name}{marker}")
-            lines.append(f"\n💡 发送 /ai-tool <工具名> 切换，例如: /ai-tool claude")
-            return "\n".join(lines), ""
+                return f"✅ 已切换到 {args}", "", None
+            card = CardBuilder.ai_tool_card(self._current_tool, list(ADAPTERS.keys()))
+            return None, "", card
 
         # /switch - /ai-tool 的别名
         if cmd == "/switch":
             if args and args in ADAPTERS:
                 self._current_tool = args
-                return f"✅ 已切换到 {args}", ""
-            return f"❌ 未知工具: {args}，可用: {', '.join(ADAPTERS.keys())}", ""
+                return f"✅ 已切换到 {args}", "", None
+            return f"❌ 未知工具: {args}，可用: {', '.join(ADAPTERS.keys())}", "", None
 
         # /clear - 清除会话历史
         if cmd == "/clear":
             self._session.clear_session(sender_id)
-            return "✅ 会话已清除", ""
+            return "✅ 会话已清除", "", None
 
         # /status - 查看当前状态
         if cmd == "/status":
@@ -121,9 +102,9 @@ class MessageProcessor:
             ]
             if summary:
                 lines.append(f"📝 已有历史总结")
-            return "\n".join(lines), ""
+            return "\n".join(lines), "", None
 
-        return None, message
+        return None, message, None
 
     def process(self, content: str, sender_id: str, bot_name: str) -> str:
         """处理消息并返回响应"""
@@ -131,7 +112,9 @@ class MessageProcessor:
         message = self.clean_message(content, bot_name)
 
         # 处理命令
-        cmd_result, remaining = self.process_command(message, sender_id)
+        cmd_result, remaining, card = self.process_command(message, sender_id)
+        if card:
+            return {"type": "card", "card": card}
         if cmd_result:
             return cmd_result
 

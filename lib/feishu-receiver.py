@@ -6,6 +6,7 @@ import sys
 import threading
 from pathlib import Path
 
+from lib.card_action_handler import CardActionHandler
 from lib.config_manager import ConfigManager
 from lib.logger import Logger
 from lib.message_processor import MessageProcessor
@@ -36,6 +37,7 @@ class FeishuReceiver:
             timeout=self._config.get("session.timeout", 3600),
         )
         self._processor = MessageProcessor(self._config, self._session)
+        self._card_handler = CardActionHandler(self._session)
 
     def check_lark_config(self) -> bool:
         """检查 lark-cli 配置"""
@@ -76,6 +78,26 @@ class FeishuReceiver:
             self._logger.error(f"回复发送异常: {e}")
             return False
 
+    def reply_card(self, message_id: str, card: dict) -> bool:
+        """回复飞书卡片消息（架构预留，待 lark-cli 支持或接入 HTTP 端点后启用）"""
+        try:
+            card_json = json.dumps(card, ensure_ascii=False)
+            result = subprocess.run(
+                resolve_command(["lark-cli", "im", "+messages-reply", "--as", "bot", "--message-id", message_id, "--card", card_json]),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                self._logger.info(f"卡片回复发送成功: {message_id}")
+                return True
+            # 卡片发送失败时降级为文本提示
+            self._logger.warning(f"卡片回复发送失败，降级为文本: {result.stderr[:300]}")
+            return False
+        except Exception as e:
+            self._logger.warning(f"卡片回复发送异常，降级为文本: {e}")
+            return False
+
     def handle_message(self, message_id: str, content: str, sender_id: str) -> None:
         """处理消息（后台线程）"""
         try:
@@ -88,7 +110,15 @@ class FeishuReceiver:
                 self.reply_text(message_id, "⏳ 任务已接收，正在处理中...")
 
             response = self._processor.process(content, sender_id, bot_name)
-            self.reply_text(message_id, response)
+
+            # 卡片响应
+            if isinstance(response, dict) and response.get("type") == "card":
+                if not self.reply_card(message_id, response["card"]):
+                    # 卡片发送失败，降级为文本
+                    self.reply_text(message_id, "操作面板发送失败，请直接输入命令，如 /ai-tool claude")
+            else:
+                self.reply_text(message_id, response)
+
             self._logger.info(f"后台任务完成 message_id={message_id}")
         except Exception as e:
             self._logger.error(f"后台任务异常 message_id={message_id}: {e}")
