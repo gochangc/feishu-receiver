@@ -169,21 +169,24 @@ class MessageProcessor:
 
     def _build_prompt(self, message: str, history: list[dict], sender_id: str) -> str:
         """构建完整提示词"""
-        parts = []
-        parts.append(f"飞书用户（open_id: {sender_id}）发送消息：")
+        parts = [
+            "你是一个飞书机器人助手。用户通过飞书向你发送消息，系统会自动将你的回复发送给用户。",
+            "你只需要直接回复内容，不需要调用任何工具或命令来发送消息。",
+            "",
+        ]
 
         # 加入历史总结（如果有）
         summary = self._session.get_summary(sender_id)
         if summary:
-            parts.append(f"\n历史总结：\n{summary}")
+            parts.append(f"历史总结：\n{summary}")
 
         if history:
-            parts.append("\n最近会话：")
+            parts.append("最近会话：")
             for msg in history[-10:]:  # 只取最近 10 条
                 role = "用户" if msg["role"] == "user" else "助手"
                 parts.append(f"{role}: {msg['content'][:200]}")
 
-        parts.append(f"\n当前消息：\n{message}")
+        parts.append(f"用户消息：\n{message}")
         parts.append(f"\n请用中文简洁回复。当前工作目录是 {self._config.get('workdir')}。")
 
         return "\n".join(parts)
