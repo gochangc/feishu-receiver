@@ -130,7 +130,7 @@ class FeishuReceiver:
         self._logger.info("开始监听飞书事件...")
         while True:
             process = subprocess.Popen(
-                resolve_command(["lark-cli", "event", "consume", "im.message.receive_v1", "--as", "bot", "--quiet", "--timeout", "86400"]),
+                resolve_command(["lark-cli", "event", "consume", "im.message.receive_v1", "--as", "bot", "--quiet", "--timeout", "24h"]),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
