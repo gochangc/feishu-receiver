@@ -32,7 +32,7 @@ class MessageProcessor:
                 text = text[len(prefix):].strip()
         return text or content.strip()
 
-    def process_command(self, message: str) -> tuple[str | None, str]:
+    def process_command(self, message: str, sender_id: str) -> tuple[str | None, str]:
         """处理命令，返回 (命令结果, 剩余消息)"""
         if not message.startswith("/"):
             return None, message
@@ -41,26 +41,72 @@ class MessageProcessor:
         cmd = parts[0].lower()
         args = parts[1].strip() if len(parts) > 1 else ""
 
+        # /help - 显示帮助
+        if cmd == "/help":
+            help_text = """📖 可用命令:
+
+/help        - 显示此帮助
+/new         - 开启新一轮会话
+/resume      - 查看最近会话记录
+/ai-tool     - 切换 AI 工具
+/status      - 查看当前状态
+/clear       - 清除会话历史"""
+            return help_text, ""
+
+        # /new - 开启新一轮会话（清除历史，保留总结）
+        if cmd == "/new":
+            self._session.clear_session(sender_id)
+            return "✅ 已开启新一轮会话", ""
+
+        # /resume - 查看最近会话记录
+        if cmd == "/resume":
+            history = self._session.get_session(sender_id)
+            if not history:
+                return "📭 暂无会话记录", ""
+            lines = ["📜 最近会话记录:\n"]
+            for i, msg in enumerate(history[-10:], 1):
+                role = "👤 用户" if msg["role"] == "user" else "🤖 助手"
+                content = msg["content"][:100]
+                if len(msg["content"]) > 100:
+                    content += "..."
+                lines.append(f"{i}. {role}: {content}")
+            count = self._session.count_messages(sender_id)
+            lines.append(f"\n共 {count} 条记录")
+            return "\n".join(lines), ""
+
+        # /ai-tool - 切换 AI 工具
+        if cmd == "/ai-tool":
+            if not args:
+                tool_list = ", ".join(ADAPTERS.keys())
+                return f"🔧 当前工具: {self._current_tool}\n可用工具: {tool_list}\n用法: /ai-tool <工具名>", ""
+            if args in ADAPTERS:
+                self._current_tool = args
+                return f"✅ 已切换到 {args}", ""
+            return f"❌ 未知工具: {args}\n可用: {', '.join(ADAPTERS.keys())}", ""
+
+        # /switch - /ai-tool 的别名
         if cmd == "/switch":
             if args and args in ADAPTERS:
                 self._current_tool = args
-                return f"已切换到 {args}", ""
-            return f"未知工具: {args}，可用: {', '.join(ADAPTERS.keys())}", ""
+                return f"✅ 已切换到 {args}", ""
+            return f"❌ 未知工具: {args}，可用: {', '.join(ADAPTERS.keys())}", ""
 
+        # /clear - 清除会话历史
         if cmd == "/clear":
-            return "会话已清除", ""
+            self._session.clear_session(sender_id)
+            return "✅ 会话已清除", ""
 
+        # /status - 查看当前状态
         if cmd == "/status":
-            status = f"当前工具: {self._current_tool}"
-            return status, ""
-
-        if cmd == "/help":
-            help_text = """可用命令:
-/switch <tool> - 切换 AI 工具 (claude/codex/opencode)
-/clear - 清除会话历史
-/status - 查看当前状态
-/help - 显示帮助"""
-            return help_text, ""
+            count = self._session.count_messages(sender_id)
+            summary = self._session.get_summary(sender_id)
+            lines = [
+                f"🔧 当前工具: {self._current_tool}",
+                f"💬 会话消息: {count} 条",
+            ]
+            if summary:
+                lines.append(f"📝 已有历史总结")
+            return "\n".join(lines), ""
 
         return None, message
 
@@ -70,11 +116,8 @@ class MessageProcessor:
         message = self.clean_message(content, bot_name)
 
         # 处理命令
-        cmd_result, remaining = self.process_command(message)
+        cmd_result, remaining = self.process_command(message, sender_id)
         if cmd_result:
-            # /clear 命令需要清除会话
-            if message.startswith("/clear"):
-                self._session.clear_session(sender_id)
             return cmd_result
 
         if not remaining:
