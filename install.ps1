@@ -130,7 +130,8 @@ if ($userPath -notlike "*$InstallDir*") {
     } else {
         $newPath = $InstallDir
     }
-    cmd /c "setx PATH `"$newPath`" 2>nul"
+    # 使用 .NET API 设置 PATH（避免 setx 1024 字符截断）
+    [Environment]::SetEnvironmentVariable('PATH', $newPath, 'User')
     Write-Host '  已添加到用户 PATH'
 } else {
     Write-Host '  已在 PATH 中'
