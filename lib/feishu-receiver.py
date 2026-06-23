@@ -12,7 +12,7 @@ from lib.config_manager import ConfigManager
 from lib.logger import Logger
 from lib.message_processor import MessageProcessor
 from lib.session_manager import SessionManager
-from lib.utils.command import detect_python, resolve_command
+from lib.utils.command import resolve_command
 
 # 安装目录
 INSTALL_DIR = Path.home() / ".feishu-receiver"
@@ -25,7 +25,8 @@ class FeishuReceiver:
     """飞书消息接收服务"""
 
     def __init__(self):
-        self._processed_ids: set[str] = set()
+        from collections import OrderedDict
+        self._processed_ids: OrderedDict[str, None] = OrderedDict()
         self._lock = threading.Lock()
         self._config = ConfigManager(CONFIG_FILE)
         self._logger = Logger(
@@ -198,10 +199,10 @@ class FeishuReceiver:
             if message_id in self._processed_ids:
                 self._logger.info(f"跳过重复消息: {message_id}")
                 return
-            self._processed_ids.add(message_id)
-            # 防止集合无限增长
-            if len(self._processed_ids) > 1000:
-                self._processed_ids.clear()
+            self._processed_ids[message_id] = None
+            # 防止集合无限增长，移除最旧的条目
+            while len(self._processed_ids) > 1000:
+                self._processed_ids.popitem(last=False)
         self._logger.info(f"收到消息 sender={sender_id} message_id={message_id}")
         worker = threading.Thread(target=self.handle_message, args=(message_id, content, sender_id), daemon=True)
         worker.start()

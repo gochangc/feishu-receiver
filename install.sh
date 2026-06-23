@@ -50,7 +50,6 @@ curl -fsSL "$RAW_BASE/lib/adapters/claude.py"     -o "$INSTALL_DIR/lib/adapters/
 curl -fsSL "$RAW_BASE/lib/adapters/codex.py"      -o "$INSTALL_DIR/lib/adapters/codex.py"
 curl -fsSL "$RAW_BASE/lib/adapters/opencode.py"   -o "$INSTALL_DIR/lib/adapters/opencode.py"
 curl -fsSL "$RAW_BASE/lib/card_builder.py"         -o "$INSTALL_DIR/lib/card_builder.py"
-curl -fsSL "$RAW_BASE/lib/card_action_handler.py"  -o "$INSTALL_DIR/lib/card_action_handler.py"
 curl -fsSL "$RAW_BASE/lib/utils/__init__.py"      -o "$INSTALL_DIR/lib/utils/__init__.py"
 curl -fsSL "$RAW_BASE/lib/utils/command.py"       -o "$INSTALL_DIR/lib/utils/command.py"
 

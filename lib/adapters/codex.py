@@ -60,8 +60,9 @@ class CodexAdapter(AIToolAdapter):
                 created_at = dt.strftime("%Y-%m-%d %H:%M")
             except Exception:
                 created_at = ""
-            title = row["title"] or row["first_user_message"][:50] or row["id"][:8]
-            preview = row["preview"] or row["first_user_message"][:100] or ""
+            first_msg = row["first_user_message"] or ""
+            title = row["title"] or first_msg[:50] or row["id"][:8]
+            preview = row["preview"] or first_msg[:100] or ""
             result.append(SessionInfo(
                 session_id=row["id"],
                 title=title,

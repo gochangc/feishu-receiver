@@ -116,6 +116,18 @@ journalctl --user -u feishu-receiver -f
 
 直接发送消息即可调用 AI 工具回复。回复前会先提示"任务已接收，正在处理"。
 
+### 会话管理
+
+服务支持三种 AI 工具的会话管理：
+
+| 工具 | 会话存储 | 恢复方式 |
+|------|----------|----------|
+| Claude Code | `~/.claude/history.jsonl` | `claude --resume <UUID>` |
+| Codex | `~/.codex/state_5.sqlite` | `codex resume <UUID>` |
+| OpenCode | `<workdir>/.opencode/opencode.db` | 暂不支持 CLI 恢复 |
+
+使用 `/resume` 可以查看当前工具的历史会话并切换。会话按工作目录过滤，只显示与配置目录相关的记录。
+
 ## 配置文件
 
 `~/.feishu-receiver/config.json`：
@@ -181,6 +193,15 @@ rm -rf ~/.feishu-receiver
 **`feishu-receiver` 命令找不到（Windows）**
 
 重新打开终端，或手动刷新 PATH：`$env:Path += ";$env:USERPROFILE\.feishu-receiver"`
+
+**重复收到相同回复**
+
+服务使用 PID 文件锁防止重复启动。如果仍有问题，手动清理残留进程：
+```powershell
+# Windows
+wmic process where "name='lark-cli.exe' and commandline like '%event%consume%'" get processid
+taskkill /F /PID <PID>
+```
 
 ## 许可证
 

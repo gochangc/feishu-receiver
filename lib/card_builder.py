@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """飞书消息卡片构建器
 
-负责构建飞书交互式消息卡片（Interactive Card）。
-卡片回调需要 HTTP 端点配合 card_action_handler 使用。
+负责构建飞书消息卡片（纯展示，不含交互按钮）。
+用户通过文字命令（如 /ai-tool claude）操作，不依赖卡片回调。
 
 飞书卡片文档: https://open.feishu.cn/document/common-capabilities/message-card
 """
