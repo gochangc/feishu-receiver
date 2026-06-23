@@ -289,6 +289,14 @@ function Stop-FeishuService {
     Stop-Process -Id $svcPid -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 
+    # 清理残留的 lark-cli 事件监听进程
+    $larkPids = Get-CimInstance Win32_Process -Filter "Name='lark-cli.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match 'event.*consume' } |
+        Select-Object -ExpandProperty ProcessId
+    foreach ($lp in $larkPids) {
+        Stop-Process -Id $lp -Force -ErrorAction SilentlyContinue
+    }
+
     Remove-Item $PidFile -ErrorAction SilentlyContinue
     Write-Host "服务已停止"
 }

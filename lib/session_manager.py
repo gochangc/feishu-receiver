@@ -54,9 +54,12 @@ class SessionManager:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS user_state (
                     user_id TEXT PRIMARY KEY,
-                    active_round INTEGER NOT NULL DEFAULT 0
+                    active_round INTEGER NOT NULL DEFAULT 0,
+                    active_session_id TEXT DEFAULT ''
                 )
             """)
+            # 兼容旧表：为 user_state 添加 active_session_id 列
+            self._migrate_user_state_table(conn)
             # 兼容旧表：如果 summaries 有 UNIQUE(user_id) 约束，迁移到新结构
             self._migrate_summaries_table(conn)
 
@@ -85,6 +88,17 @@ class SessionManager:
             logger.info("summaries 表已迁移到多轮结构")
         except Exception as e:
             logger.warning(f"summaries 表迁移检查: {e}")
+
+    def _migrate_user_state_table(self, conn: sqlite3.Connection) -> None:
+        """迁移旧的 user_state 表（添加 active_session_id 列）"""
+        try:
+            columns = [row[1] for row in conn.execute("PRAGMA table_info(user_state)").fetchall()]
+            if "active_session_id" in columns:
+                return  # 已有该列
+            conn.execute("ALTER TABLE user_state ADD COLUMN active_session_id TEXT DEFAULT ''")
+            logger.info("user_state 表已添加 active_session_id 列")
+        except Exception as e:
+            logger.warning(f"user_state 表迁移检查: {e}")
 
     def get_session(self, user_id: str) -> list[dict[str, str]]:
         """获取用户当前会话历史"""
@@ -181,6 +195,27 @@ class SessionManager:
                     (user_id, active),
                 ).fetchone()
             return row[0] if row else None
+
+    # ------------------------------------------------------------------ #
+    #  AI 工具会话管理
+    # ------------------------------------------------------------------ #
+
+    def get_active_session_id(self, user_id: str) -> str:
+        """获取用户当前关联的 AI 工具会话 ID（空字符串表示使用默认）"""
+        with sqlite3.connect(str(self._db_path)) as conn:
+            row = conn.execute(
+                "SELECT active_session_id FROM user_state WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return (row[0] or "") if row else ""
+
+    def set_active_session_id(self, user_id: str, session_id: str) -> None:
+        """设置用户关联的 AI 工具会话 ID"""
+        with sqlite3.connect(str(self._db_path)) as conn:
+            conn.execute(
+                "INSERT INTO user_state (user_id, active_session_id) VALUES (?, ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET active_session_id = ?",
+                (user_id, session_id, session_id),
+            )
 
     def get_summary(self, user_id: str) -> str | None:
         """获取用户最新一轮的总结"""

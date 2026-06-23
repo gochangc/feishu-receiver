@@ -25,6 +25,15 @@ class MessageProcessor:
             raise ValueError(f"未知的 AI 工具: {name}")
         return adapter_cls()
 
+    @property
+    def current_tool(self) -> str:
+        """当前工具名称"""
+        return self._current_tool
+
+    def set_current_tool(self, tool: str) -> None:
+        """设置当前工具（供卡片回调使用）"""
+        self._current_tool = tool
+
     def clean_message(self, content: str, bot_name: str) -> str:
         """清理消息内容，去除 @提及"""
         text = re.sub(r"<at[^>]*>([^<]+)</at>", r"\1", content).strip()
@@ -56,14 +65,35 @@ class MessageProcessor:
             card = CardBuilder.new_session_card()
             return None, "", card
 
-        # /resume - 查看最近会话记录（卡片，支持轮次切换）
+        # /resume - 查看/切换 AI 工具会话
+        #   /resume           → 显示会话列表卡片
+        #   /resume <id>      → 切换到指定会话
+        #   /resume off       → 取消会话关联
         if cmd == "/resume":
-            history = self._session.get_session(sender_id)
-            count = self._session.count_messages(sender_id)
-            rounds = self._session.get_round_summaries(sender_id)
-            latest_round = self._session.get_current_round(sender_id)
-            active_round = self._session.get_active_round(sender_id)
-            card = CardBuilder.resume_card(history, count, rounds, latest_round, active_round)
+            adapter = self.get_adapter()
+            workdir = Path(self._config.get("workdir", "."))
+
+            # 带参数：执行切换操作
+            if args:
+                if args.lower() in ("off", "default", "取消"):
+                    self._session.set_active_session_id(sender_id, "")
+                    return "✅ 已取消会话关联，回到默认模式", "", None
+                # 尝试将会话 ID 前缀匹配到已有会话
+                sessions = adapter.list_sessions(workdir)
+                matched = None
+                for s in sessions:
+                    if s.session_id == args or s.session_id.startswith(args):
+                        matched = s
+                        break
+                if matched:
+                    self._session.set_active_session_id(sender_id, matched.session_id)
+                    return f"✅ 已切换到会话: {matched.title}", "", None
+                return f"❌ 未找到匹配的会话: {args}", "", None
+
+            # 无参数：显示会话列表卡片
+            sessions = [s.to_dict() for s in adapter.list_sessions(workdir)]
+            active_session_id = self._session.get_active_session_id(sender_id)
+            card = CardBuilder.resume_card(self._current_tool, sessions, active_session_id)
             return None, "", card
 
         # /ai-tool - 查看/切换 AI 工具（卡片）
@@ -127,12 +157,16 @@ class MessageProcessor:
         # 构建提示词
         prompt = self._build_prompt(remaining, history, sender_id)
 
-        # 调用 AI 工具
+        # 调用 AI 工具（如果已关联会话则使用会话恢复模式）
         try:
             adapter = self.get_adapter()
             workdir = Path(self._config.get("workdir", "."))
             timeout = self._config.get("ai_tool.timeout", 300)
-            response = adapter.execute(prompt, workdir, timeout)
+            active_session_id = self._session.get_active_session_id(sender_id) if session_enabled else ""
+            if active_session_id and adapter.has_session_support():
+                response = adapter.execute_with_session(active_session_id, prompt, workdir, timeout)
+            else:
+                response = adapter.execute(prompt, workdir, timeout)
         except Exception as e:
             return f"处理失败: {e}"
 

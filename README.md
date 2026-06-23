@@ -105,7 +105,9 @@ journalctl --user -u feishu-receiver -f
 |------|------|
 | `/help` | 显示可用命令列表 |
 | `/new` | 开启新一轮会话（保留历史总结） |
-| `/resume` | 查看最近会话记录，支持清空并开始新会话 |
+| `/resume` | 查看当前 AI 工具的历史会话，支持切换 |
+| `/resume <会话ID>` | 切换到指定会话（支持 ID 前缀匹配） |
+| `/resume off` | 取消会话关联，回到默认模式 |
 | `/ai-tool` | 查看/切换 AI 工具（claude / codex / opencode） |
 | `/ai-tool <工具名>` | 直接切换到指定工具，如 `/ai-tool codex` |
 | `/switch <工具名>` | `/ai-tool` 的别名 |

@@ -2,18 +2,12 @@
 """卡片回调处理器
 
 处理飞书交互式卡片的按钮点击回调。
-
-使用方式:
-    1. 在飞书开放平台配置卡片请求网址（Card Request URL）
-    2. 启动 HTTP 服务监听回调请求
-    3. 调用 CardActionHandler.handle() 处理回调
-
-当前状态: 架构预留，待接入 HTTP 端点后启用。
 """
 from __future__ import annotations
 
 import logging
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 from lib.adapters import ADAPTERS
 from lib.card_builder import CardBuilder
@@ -29,21 +23,24 @@ class CardActionHandler:
     每个 action value 应包含 {"action": "<action_name>", ...} 字段。
     """
 
-    def __init__(self, session: SessionManager):
+    def __init__(
+        self,
+        session: SessionManager,
+        adapter_factory: Callable[[], Any],
+        get_workdir: Callable[[], Path],
+        set_current_tool: Callable[[str], None],
+        get_current_tool: Callable[[], str],
+    ):
         self._session = session
-        self._current_tool: str = "claude"
+        self._adapter_factory = adapter_factory
+        self._get_workdir = get_workdir
+        self._set_current_tool = set_current_tool
+        self._get_current_tool = get_current_tool
         # action_name -> handler 方法的映射
-        self._handlers: dict[str, callable] = {
+        self._handlers: dict[str, Callable] = {
             "switch_tool": self._handle_switch_tool,
-            "resume_new_session": self._handle_resume_new_session,
-            "switch_round": self._handle_switch_round,
-            "view_round": self._handle_view_round,
-            "load_round": self._handle_load_round,
+            "switch_session": self._handle_switch_session,
         }
-
-    def set_current_tool(self, tool: str) -> None:
-        """同步当前工具名称（由 MessageProcessor 调用）"""
-        self._current_tool = tool
 
     def handle(self, action_value: dict[str, Any], sender_id: str) -> dict | str:
         """处理卡片回调
@@ -66,57 +63,47 @@ class CardActionHandler:
     #  具体 action 处理方法
     # ------------------------------------------------------------------ #
 
-    def _handle_switch_tool(self, value: dict, sender_id: str) -> str:
+    def _handle_switch_tool(self, value: dict, sender_id: str) -> dict | str:
         """切换 AI 工具"""
         tool_name = value.get("tool", "")
-        if tool_name in ADAPTERS:
-            self._current_tool = tool_name
-            logger.info(f"卡片回调切换工具: {tool_name} sender={sender_id}")
-            return f"✅ 已切换到 {tool_name}"
-        return f"❌ 未知工具: {tool_name}"
+        if tool_name not in ADAPTERS:
+            return f"❌ 未知工具: {tool_name}"
 
-    def _handle_resume_new_session(self, value: dict, sender_id: str) -> str:
-        """清空会话，开始新一轮"""
-        self._session.clear_session(sender_id)
-        logger.info(f"卡片回调清空会话 sender={sender_id}")
-        return "✅ 已清空会话，开始新一轮"
+        self._set_current_tool(tool_name)
+        logger.info(f"卡片回调切换工具: {tool_name} sender={sender_id}")
 
-    def _handle_switch_round(self, value: dict, sender_id: str) -> dict | str:
-        """切换到指定轮次（0=返回最新轮）"""
-        round_num = value.get("round", 0)
-        self._session.set_active_round(sender_id, round_num)
-        if round_num == 0:
-            logger.info(f"卡片回调切回最新轮 sender={sender_id}")
+        # 切换工具后返回该工具的会话列表卡片
+        try:
+            adapter = self._adapter_factory()
+            workdir = self._get_workdir()
+            sessions = [s.to_dict() for s in adapter.list_sessions(workdir)]
+            active_session_id = self._session.get_active_session_id(sender_id)
+            return CardBuilder.resume_card(tool_name, sessions, active_session_id)
+        except Exception as e:
+            logger.warning(f"获取会话列表失败: {e}")
+            return CardBuilder.switch_tool_card(tool_name)
+
+    def _handle_switch_session(self, value: dict, sender_id: str) -> dict | str:
+        """切换 AI 工具会话
+
+        session_id 为空字符串时表示取消关联，回到默认模式。
+        """
+        session_id = value.get("session_id", "")
+        self._session.set_active_session_id(sender_id, session_id)
+
+        if session_id:
+            logger.info(f"卡片回调关联会话: {session_id} sender={sender_id}")
         else:
-            logger.info(f"卡片回调切换到第 {round_num} 轮 sender={sender_id}")
+            logger.info(f"卡片回调取消会话关联 sender={sender_id}")
 
-        # 重新构建 /resume 卡片返回
-        history = self._session.get_session(sender_id)
-        count = self._session.count_messages(sender_id)
-        rounds = self._session.get_round_summaries(sender_id)
-        latest_round = self._session.get_current_round(sender_id)
-        active_round = self._session.get_active_round(sender_id)
-        return CardBuilder.resume_card(history, count, rounds, latest_round, active_round)
-
-    def _handle_view_round(self, value: dict, sender_id: str) -> dict | str:
-        """查看指定轮次的完整总结"""
-        round_num = value.get("round", 0)
-        rounds = self._session.get_round_summaries(sender_id)
-        for r in rounds:
-            if r["round"] == round_num:
-                return CardBuilder.round_detail_card(r["round"], r["summary"], r["updated_at"])
-        return f"❌ 未找到第 {round_num} 轮会话"
-
-    def _handle_load_round(self, value: dict, sender_id: str) -> dict | str:
-        """加载指定轮次的总结并切换"""
-        round_num = value.get("round", 0)
-        self._session.set_active_round(sender_id, round_num)
-        logger.info(f"卡片回调加载第 {round_num} 轮总结 sender={sender_id}")
-
-        # 返回更新后的 /resume 卡片
-        history = self._session.get_session(sender_id)
-        count = self._session.count_messages(sender_id)
-        rounds = self._session.get_round_summaries(sender_id)
-        latest_round = self._session.get_current_round(sender_id)
-        active_round = self._session.get_active_round(sender_id)
-        return CardBuilder.resume_card(history, count, rounds, latest_round, active_round)
+        # 返回更新后的会话列表卡片
+        try:
+            tool_name = self._get_current_tool()
+            adapter = self._adapter_factory()
+            workdir = self._get_workdir()
+            sessions = [s.to_dict() for s in adapter.list_sessions(workdir)]
+            active_session_id = self._session.get_active_session_id(sender_id)
+            return CardBuilder.resume_card(tool_name, sessions, active_session_id)
+        except Exception as e:
+            logger.warning(f"获取会话列表失败: {e}")
+            return f"✅ 已{'关联会话' if session_id else '取消会话关联'}"
